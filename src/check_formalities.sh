@@ -10,14 +10,35 @@ MAX_SUBJECT_LEN_HARD=60
 MAX_SUBJECT_LEN_SOFT=50
 MAX_BODY_LINE_LEN=75
 
-DEPENDABOT_EMAIL="dependabot[bot]@users.noreply.github.com"
+INDENT_MD='    '
+INDENT_TERM='       '
+
+DEPENDABOT_EMAIL='dependabot[bot]@users.noreply.github.com'
 GITHUB_NOREPLY_EMAIL='@users.noreply.github.com'
-WEBLATE_EMAIL='<hosted@weblate.org>'
+WEBLATE_EMAIL='hosted@weblate.org'
 
 EMOJI_WARN=':large_orange_diamond:'
 EMOJI_FAIL=':x:'
 
-RET=0
+PREFIX_REGEX='^([0-9A-Za-z,+/._-]+: )+'
+
+RES_FAIL=3
+RES_SKIP=1
+RES_WARN=2
+
+FAIL=0
+
+# Email parts of authors for which most checks will be skipped
+EXCEPTION_EMAILS=()
+EXCEPTION_NAMES=()
+
+# Used to communicate skipping reasons between checks without explicitly passing
+# it around
+SKIP_REASONS=()
+
+# Use these global vars to improve header creation readability
+COMMIT=""
+HEADER_SET=0
 
 REPO_PATH=${1:+-C "$1"}
 # shellcheck disable=SC2206
@@ -25,11 +46,10 @@ REPO_PATH=($REPO_PATH)
 
 ACTION_PATH=${ACTION_PATH:+"$ACTION_PATH/src"}
 ACTION_PATH=${ACTION_PATH:-$(dirname "$(readlink -f "$0")")}
-source "$ACTION_PATH/ci_helpers.sh"
+source "$ACTION_PATH/helpers.sh"
 
-# Use these global vars to improve header creation readability
-COMMIT=""
-HEADER_SET=0
+# output_xxx write to GitHub Actions output to be later posted to a PR
+# status_xxx write to terminal
 
 output() {
 	[ -f "$GITHUB_OUTPUT" ] || return
@@ -51,206 +71,379 @@ output_header() {
 	HEADER_SET=1
 }
 
-output_warn() {
-	output_header
-	output "- $EMOJI_WARN $1"
-	status_warn "$1"
+output_raw() {
+	output "$INDENT_MD$1"
+	echo "$INDENT_TERM$1"
 }
 
-output_fail_raw() {
+output_details() {
+	local actual="${1:-}"
+	local expected="${2:-}"
+
+	if [ -n "$actual" ]; then
+		output_raw "Actual: $actual"
+	fi
+
+	if [ -n "$expected" ]; then
+		output_raw "Expected: $expected"
+	fi
+}
+
+output_pass() {
+	local msg="$1"
+	local reason="${2:-}"
+
+	# Don't actually output anything to actions output
+	status_pass "$msg"
+	if [ -n "$reason" ]; then
+		echo "${INDENT_TERM}Reason: $reason"
+	fi
+}
+
+output_warn() {
+	local msg="$1"
+	local actual="${2:-}"
+	local expected="${3:-}"
+
 	output_header
-	output "$1"
-	status_fail "$1"
+	output "- $EMOJI_WARN $msg"
+	status_warn "$msg"
+	output_details "$actual" "$expected"
 }
 
 output_fail() {
+	local msg="$1"
+	local actual="${2:-}"
+	local expected="${3:-}"
+
 	output_header
-	output "- $EMOJI_FAIL $1"
-	status_fail "$1"
+	output "- $EMOJI_FAIL $msg"
+	status_fail "$msg"
+	output_details "$actual" "$expected"
+
+	FAIL=1
 }
 
-is_stable_branch() {
-	[ "$1" != "main" ] && [ "$1" != "master" ]
+output_skip() {
+	local msg="$1"
+	local reason="${2:-}"
+
+	# Don't actually output anything to actions output
+	status_skip "$msg"
+	if [ -n "$reason" ]; then
+		echo "${INDENT_TERM}Reason: $reason"
+	fi
 }
 
-is_dependabot() {
-	echo "$1" | grep -iqF "$DEPENDABOT_EMAIL"
+output_split_fail() {
+	split_fail "$1" "$2" "${INDENT_TERM}"
+	[ -f "$GITHUB_OUTPUT" ] || return
+	printf "${INDENT_MD}\$\\\textsf{%s\\color{red}{%s}}\$\n" \
+		"${2:0:$1}" "${2:$1}" >> "$GITHUB_OUTPUT"
 }
 
-is_weblate() {
-	echo "$1" | grep -iqF "$WEBLATE_EMAIL"
+output_split_fail_ex() {
+	split_fail_ex "$1" "$2" "$3" "${INDENT_TERM}"
+	[ -f "$GITHUB_OUTPUT" ] || return
+	printf "${INDENT_MD}\$\\\textsf{%s\\color{yellow}{%s}\\color{red}{%s}}\$\n" \
+		"${3:0:$1}" "${3:$1:$(($2 - $1))}" "${3:$2}" >> "$GITHUB_OUTPUT"
 }
 
-exclude_dependabot() {
-	[ "$EXCLUDE_DEPENDABOT" = 'true' ]
+# shellcheck disable=SC2329
+ends_with_period()     { grep -qEe "\.$" <<< "$1"; }
+exclude_dependabot()   { [ "$EXCLUDE_DEPENDABOT" = 'true' ]; }
+exclude_weblate()      { [ "$EXCLUDE_WEBLATE" = 'true' ]; }
+git_format()           { git "${REPO_PATH[@]}" show -s --format="$1" "$COMMIT"; }
+# shellcheck disable=SC2329
+has_no_prefix()        { ! grep -qEe "$PREFIX_REGEX" <<< "$1"; }
+# shellcheck disable=SC2329
+is_first_word_caps()   { grep -qEe "${PREFIX_REGEX}[A-Z]" <<< "$1"; }
+# shellcheck disable=SC2329
+is_body_empty()        { ! echo "$1" | grep -v 'Signed-off-by:' | grep -q '[^[:space:]]'; }
+# shellcheck disable=SC2329
+is_github_noreply()    { grep -iqF "$GITHUB_NOREPLY_EMAIL" <<< "$1"; }
+# shellcheck disable=SC2329
+is_gt()                { [ "$1" -gt "$2" ]; }
+# shellcheck disable=SC2329
+is_main_branch()       { [[ "$1" =~ ^(origin/)?(main|master)$ ]]; }
+# shellcheck disable=SC2329
+is_merge()             { git_format '%P' | grep -qF ' '; }
+# shellcheck disable=SC2329
+is_not_alias()         { ! grep -qEe '\S' <<< "$1"; }
+# shellcheck disable=SC2329
+is_not_name()          { ! grep -qEe '\S+\s\S+' <<< "$1"; }
+is_revert()            { grep -qEe '^Revert ' <<< "$1"; }
+# shellcheck disable=SC2329
+omits()                { ! grep -qF "$2" <<< "$1"; }
+
+have_exceptions() { [ "${#EXCEPTION_NAMES[@]}" -gt 0 ]; }
+
+push_exception() {
+	EXCEPTION_NAMES[${#EXCEPTION_NAMES[@]}]="$1";
+	EXCEPTION_EMAILS[${#EXCEPTION_EMAILS[@]}]="$2";
 }
 
-exclude_weblate() {
-	[ "$EXCLUDE_WEBLATE" = 'true' ]
+is_exception() {
+	local email="$1"
+	if [ -z "$email" ]; then
+		return 1
+	fi
+
+	for idx in "${!EXCEPTION_EMAILS[@]}"; do
+		if grep -iqF "${EXCEPTION_EMAILS[idx]}" <<< "$email"; then
+			echo "${EXCEPTION_NAMES[idx]}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+check_exceptions() {
+	exclude_dependabot && push_exception 'dependabot' "$DEPENDABOT_EMAIL"
+	exclude_weblate && push_exception 'weblate' "$WEBLATE_EMAIL"
+
+	if have_exceptions; then
+		warn "Enabled exceptions: ${EXCEPTION_NAMES[*]}"
+	else
+		echo 'Enabled exceptions: none'
+	fi
+}
+
+have_reasons()    { [ "${#SKIP_REASONS[@]}" -gt 0 ]; }
+is_reason()       { have_reasons && [ "${SKIP_REASONS[-1]}" = "$1" ]; }
+peak_reason()     { have_reasons && echo "${SKIP_REASONS[-1]}"; }
+pop_reason()      { unset "SKIP_REASONS[-1]"; }
+pop_if_reason()   { is_reason "$1" && pop_reason; }
+push_reason()     { SKIP_REASONS[${#SKIP_REASONS[@]}]="$1"; }
+
+reset_reasons() {
+	local author_email="$1"
+	local exception
+
+	SKIP_REASONS=()
+	exception="$(is_exception "$author_email")"
+	if [ $? = 0 ]; then
+		push_reason "authored by $exception"
+	fi
+}
+
+get_arity() {
+	local fn_name="$1"
+	local fn_body
+	fn_body=$(declare -f "$fn_name")
+
+	# Count the highest number used in a positional parameter like $1, $2, etc.
+	local arity
+	arity=$(echo "$fn_body" | grep -o '\$[0-9]\+' | sed 's/\$//' | sort -rn | head -n1)
+
+	if [ -z "$arity" ]; then
+		echo 0
+	else
+		echo "$arity"
+	fi
+}
+
+
+# To prevent command injection from malicious commit data, instead of using
+# `eval`, this takes a function name and arguments for conditions separately.
+check() {
+	local rule
+	local pass_reason
+	local fail_fn fail_args fail_actual fail_expected fail_set_skip
+	local warn_fn warn_args warn_actual warn_expected
+	local skip_fn skip_args
+	local skip_reason
+	local fn arity
+
+	skip_reason=$(peak_reason)
+
+	local flag fn_args
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			-rule)          rule="$2";          shift ;;
+			-pass-reason)   pass_reason="$2";   shift ;;
+			-always)        skip_reason=''            ;;
+			-skip-reason)   skip_reason="$2";   shift ;;
+			-fail-actual)   fail_actual="$2";   shift ;;
+			-fail-expected) fail_expected="$2"; shift ;;
+			-fail-set-skip) fail_set_skip="$2"; shift ;;
+			-warn-actual)   warn_actual="$2";   shift ;;
+			-warn-expected) warn_expected="$2"; shift ;;
+
+			-skip-if|-fail-if|-warn-if)
+				flag="${1#-}"
+				flag="${flag%-if}"
+				declare "${flag}_fn=$2"
+				if ! declare -F "$2" >/dev/null; then
+					err_die "Bad function name provided to '$1': '$2'"
+				fi
+				shift 2
+
+				# Get the actual function name from the declare above and check
+				# its arity
+				fn=$(declare -p "${flag}_fn" | sed -e "s/.*\"\(.*\)\"/\1/")
+				arity=$(get_arity "$fn")
+				fn_args=()
+				# Parse up to the arity number of arguments
+				while [ $# -gt 0 ] && [ ${#fn_args[@]} -lt "$arity" ]; do
+					fn_args+=("$1")
+					shift
+				done
+
+				# Fail if there's an arity mismatch
+				if [ ${#fn_args[@]} -lt "$arity" ]; then
+					err_die "Bad number of arguments provided to '$1': expected $arity, got ${#fn_args[@]}"
+				fi
+
+				# Create an alias and then assign without using eval
+				declare -n "target_args=${flag}_args"
+				# shellcheck disable=SC2034
+				target_args=("${fn_args[@]}")
+				continue
+				;;
+
+			*)
+				err_die "Bad check flag: '$1'"
+				;;
+		esac
+		shift
+	done
+
+	if { [ -n "$skip_fn" ] && "$skip_fn" "${skip_args[@]}"; } || { [ -z "$skip_fn" ] && [ -n "$skip_reason" ]; }; then
+		output_skip "$rule" "$skip_reason"
+		return "$RES_SKIP"
+
+	elif [ -n "$fail_fn" ] && "$fail_fn" "${fail_args[@]}"; then
+		output_fail "$rule" "$fail_actual" "$fail_expected"
+		[ -n "$fail_set_skip" ] && push_reason "$fail_set_skip"
+		return "$RES_FAIL"
+
+	elif [ -n "$warn_fn" ] && "$warn_fn" "${warn_args[@]}"; then
+		output_warn "$rule" "$warn_actual" "$warn_expected"
+		return "$RES_WARN"
+
+	else
+		output_pass "$rule" "$pass_reason"
+	fi
 }
 
 check_name() {
 	local type="$1"
 	local name="$2"
-	local email="$3"
 
-	if exclude_dependabot && is_dependabot "$email"; then
-		status_warn "$type email exception: authored by dependabot"
-	elif exclude_weblate && is_weblate "$email"; then
-		status_warn "$type email exception: authored by Weblate"
-	# Pattern \S\+\s\+\S\+ matches >= 2 names i.e. 3 and more e.g. "John Von
-	# Doe" also match
-	elif echo "$name" | grep -q '\S\+\s\+\S\+'; then
-		status_pass "$type name ($name) seems OK"
-	# Pattern \S\+ matches single names, typical of nicknames or handles
-	elif echo "$name" | grep -q '\S\+'; then
-		output_warn "$type name ($name) seems to be a nickname or an alias"
-	else
-		output_fail "$type name ($name) must be one of:"
-		output_fail_raw "    - real name 'firstname lastname'"
-		output_fail_raw '    - nickname/alias/handle'
-		RET=1
-	fi
+	check \
+		-rule "$type name must be either a real name 'firstname lastname' or a nickname/alias/handle" \
+		-fail-if is_not_alias "$name" \
+		-warn-if is_not_name "$name" \
+		-warn-actual "$name seems to be a nickname or an alias" \
+		-warn-expected "a real name 'firstname lastname'"
 }
 
 check_email() {
 	local type="$1"
 	local email="$2"
 
-	if exclude_dependabot && is_dependabot "$email"; then
-		status_warn "$type email exception: authored by dependabot"
-	elif exclude_weblate && is_weblate "$email"; then
-		status_warn "$type email exception: authored by Weblate"
-	elif echo "$email" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
-		output_fail "$type email cannot be a GitHub noreply email"
-		RET=1
-	else
-		status_pass "$type email is not a GitHub noreply email"
-	fi
+	check \
+		-rule "$type email must not be a GitHub noreply email" \
+		-fail-if is_github_noreply "$email" \
+		-fail-expected 'a real email address'
 }
 
 check_subject() {
 	local subject="$1"
-	local author_email="$2"
 
-	# Check subject format
-	if exclude_dependabot && is_dependabot "$author_email"; then
-		status_warn 'Commit subject line exception: authored by dependabot'
-	elif exclude_weblate && is_weblate "$author_email"; then
-		status_warn 'Commit subject line exception: authored by Weblate'
-	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+[a-z]' -e '^Revert '; then
-		status_pass 'Commit subject line format seems OK'
-	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+[A-Z]'; then
-		output_fail 'First word after prefix in subject should not be capitalized'
-		RET=1
-	elif echo "$subject" | grep -qE -e '^([0-9A-Za-z,+/._-]+: )+'; then
-		# Handles cases when there's a prefix but the check for capitalization
-		# fails (e.g. no word after prefix)
-		output_fail 'Commit subject line MUST start with `<package name>: ` and be followed by a lower-case word'
-		RET=1
-	else
-		output_fail 'Commit subject line MUST start with `<package name>: `'
-		RET=1
-	fi
+	is_revert "$subject" && push_reason 'revert commit'
 
-	if echo "$subject" | grep -q '\.$'; then
-		output_fail 'Commit subject line should not end with a period'
-		RET=1
-	fi
+	local reason='missing prefix'
+	# shellcheck disable=SC2016
+	check \
+		-rule 'Commit subject must start with `<package name>: `' \
+		-fail-if has_no_prefix "$subject" \
+		-fail-set-skip "$reason"
 
-	# Don't append to the workflow output, since these are more of internal
-	# warnings.
-	if exclude_dependabot && is_dependabot "$author_email"; then
-		status_warn 'Commit subject line length exception: authored by dependabot'
-		return
-	elif exclude_weblate && is_weblate "$author_email"; then
-		status_warn 'Commit subject line length exception: authored by Weblate'
-		return
-	fi
+	check \
+		-rule 'Commit subject must start with a lower-case word after the prefix' \
+		-fail-if is_first_word_caps "$subject"
+
+	pop_if_reason "$reason"
+
+	check \
+		-rule 'Commit subject must not end with a period' \
+		-fail-if ends_with_period "$subject"
 
 	# Check subject length first for hard limit which results in an error and
-	# otherwise for a soft limit which results in a warning. Show soft limit in
-	# either case.
-	local msg="Commit subject length: recommended max $MAX_SUBJECT_LEN_SOFT, required max $MAX_SUBJECT_LEN_HARD characters"
-	if [ ${#subject} -gt "$MAX_SUBJECT_LEN_HARD" ]; then
-		output_fail "$msg"
-		split_fail "$MAX_SUBJECT_LEN_SOFT" "$subject"
-		RET=1
-	elif [ ${#subject} -gt "$MAX_SUBJECT_LEN_SOFT" ]; then
-		output_warn "$msg"
-		split_fail "$MAX_SUBJECT_LEN_SOFT" "$subject"
-	else
-		status_pass "$msg"
+	# otherwise for a soft limit which results in a warning.
+	check \
+		-rule "Commit subject must be <= $MAX_SUBJECT_LEN_HARD (and should be <= $MAX_SUBJECT_LEN_SOFT) characters long" \
+		-fail-if is_gt "${#subject}" "$MAX_SUBJECT_LEN_HARD" \
+		-fail-actual "subject is ${#subject} characters long" \
+		-warn-if is_gt "${#subject}" "$MAX_SUBJECT_LEN_SOFT" \
+		-warn-actual "subject is ${#subject} characters long"
+
+	local res=$?
+	if [ "$res" = "$RES_WARN" ] || [ "$res" = "$RES_FAIL" ]; then
+		output_split_fail_ex "$MAX_SUBJECT_LEN_SOFT" "$MAX_SUBJECT_LEN_HARD" "$subject"
 	fi
 }
 
 check_body() {
 	local body="$1"
 	local sob="$2"
-	local author_email="$3"
 
-	# Check body line lengths
-	if ! { exclude_weblate && is_weblate "$author_email"; } && ! { exclude_dependabot && is_dependabot "$author_email"; }; then
-		body_line_too_long=0
-		line_num=0
+	local reason="missing or doesn't match author"
+	# shellcheck disable=SC2016
+	check \
+		-rule '`Signed-off-by` must match author' \
+		-fail-if omits "$body" "$sob" \
+		-fail-actual "$reason" \
+		-fail-expected "\`$sob\`" \
+		-fail-set-skip "$reason"
+
+	# shellcheck disable=SC2016
+	check \
+		-rule '`Signed-off-by` must not be a GitHub noreply email' \
+		-fail-if is_github_noreply "$body" \
+		-fail-expected 'a real email address'
+
+	pop_if_reason "$reason"
+
+	# Never skip this check based on other checks
+	check \
+		-rule 'Commit message must exist' \
+		-always \
+		-fail-if is_body_empty "$body" \
+		-fail-set-skip 'missing commit message'
+
+	local msg="Commit message lines should be <= $MAX_BODY_LINE_LEN characters long"
+	if ! have_reasons; then
+		local body_line_too_long=0
+		local line_num=0
 		while IFS= read -r line; do
 			line_num=$((line_num + 1))
 			if [ ${#line} -gt "$MAX_BODY_LINE_LEN" ]; then
-				output_warn "Commit body line $line_num is longer than $MAX_BODY_LINE_LEN characters (is ${#line}):"
-				output "    $line"
-				split_fail "$MAX_BODY_LINE_LEN" "$line"
-				body_line_too_long=1
+				if [ "$body_line_too_long" = 0 ]; then
+					output_warn "$msg"
+					body_line_too_long=1
+				fi
+				output_details "line $line_num is ${#line} characters long"
+				output_split_fail "$MAX_BODY_LINE_LEN" "$line"
 			fi
 		done <<< "$body"
 		if [ "$body_line_too_long" = 0 ]; then
-			status_pass "Commit body lines are $MAX_BODY_LINE_LEN characters or less"
+			status_pass "$msg"
 		fi
 	else
-		if exclude_dependabot && is_dependabot "$author_email"; then
-			status_warn 'Commit body line length exception: authored by dependabot'
-		elif exclude_weblate && is_weblate "$author_email"; then
-			status_warn 'Commit body line length exception: authored by Weblate'
-		fi
+		output_skip "$msg" "${SKIP_REASONS[-1]}"
 	fi
 
-	if echo "$body" | grep -qF "$sob"; then
-		status_pass '`Signed-off-by` matches author'
-
-	# Don't append to the workflow output, since these are more of internal
-	# warnings.
-	elif exclude_dependabot && is_dependabot "$author_email"; then
-		status_warn '`Signed-off-by` exception: authored by dependabot'
-	elif exclude_weblate && is_weblate "$author_email"; then
-		status_warn '`Signed-off-by` exception: authored by Weblate'
-
-	else
-		output_fail "\`Signed-off-by\` is missing or doesn't match author (should be \`$sob\`)"
-		RET=1
-	fi
-
-	if ! ( exclude_dependabot && is_dependabot "$author_email" ) && ! ( exclude_weblate && is_weblate "$author_email" ); then
-		if echo "$body" | grep -qF "$GITHUB_NOREPLY_EMAIL"; then
-			output_fail '`Signed-off-by` email cannot be a GitHub noreply email'
-			RET=1
-		else
-			status_pass '`Signed-off-by` email is not a GitHub noreply email'
-		fi
-	fi
-
-	if echo "$body" | grep -v "Signed-off-by:" | grep -qv '^[[:space:]]*$'; then
-		status_pass 'A commit message exists'
-	else
-		output_fail 'Commit message is missing. Please describe your changes.'
-		RET=1
-	fi
-
-	if is_stable_branch "$BRANCH"; then
-		if echo "$body" | grep -qF "(cherry picked from commit"; then
-			status_pass "Commit is marked as cherry-picked"
-		else
-			output_warn "Commit tog stable branch \`$BRANCH\` should be cherry-picked"
-		fi
-	fi
+	# Never skip this check based on other checks
+	check \
+		-rule 'Commit to stable branch should be marked as cherry-picked' \
+		-always \
+		-skip-if is_main_branch "$BASE_BRANCH" \
+		-skip-reason "not a stable branch (\`${BASE_BRANCH#origin/}\`)" \
+		-warn-if omits "$body" '(cherry picked from commit' \
+		-warn-actual "a stable branch (\`${BASE_BRANCH#origin/}\`)"
 }
 
 main() {
@@ -258,6 +451,7 @@ main() {
 	local author_name
 	local body
 	local commit
+	local committer_email
 	local committer_name
 	local subject
 
@@ -270,59 +464,54 @@ main() {
 
 	EOF
 
-	if exclude_dependabot; then
-		warn 'dependabot exceptions are enabled'
-	else
-		echo 'dependabot exceptions are disabled'
-	fi
-
-	if exclude_weblate; then
-		warn 'Weblate exceptions are enabled'
-	else
-		echo 'Weblate exceptions are disabled'
-	fi
+	check_exceptions
 	echo
 
-	for commit in $(git "${REPO_PATH[@]}" rev-list HEAD ^origin/"$BRANCH"); do
+	for commit in $(git "${REPO_PATH[@]}" rev-list "$BASE_BRANCH"..HEAD); do
 		HEADER_SET=0
 		COMMIT="$commit"
 
-		info "=== Checking commit '$commit'"
-		if git "${REPO_PATH[@]}" show --format='%P' -s "$commit" | grep -qF ' '; then
-			output_fail 'Pull request should not include merge commits'
-			RET=1
+		git "${REPO_PATH[@]}" log -1 --color --pretty=full "$commit"
+		echo
+
+		check \
+			-rule 'Pull request must not include merge commits' \
+			-always \
+			-fail-if is_merge
+
+		if [ $? = "$RES_FAIL" ]; then
+			# No need to check anything else, since this is a merge commit
+			echo
+			continue
 		fi
 
-		author_name="$(git "${REPO_PATH[@]}" show -s --format=%aN "$commit")"
-		committer_name="$(git "${REPO_PATH[@]}" show -s --format=%cN "$commit")"
-		author_email="$(git "${REPO_PATH[@]}" show -s --format='<%aE>' "$commit")"
-		committer_email="$(git "${REPO_PATH[@]}" show -s --format='<%cE>' "$commit")"
-		check_name 'Author' "$author_name" "$author_email"
+		author_name="$(git_format '%aN')"
+		author_email="$(git_format '%aE')"
+		committer_name="$(git_format '%cN')"
+		committer_email="$(git_format '%cE')"
+
+		reset_reasons "$author_email"
+
+		check_name 'Author' "$author_name"
 		check_email 'Author' "$author_email"
-		check_name 'Committer' "$committer_name" "$committer_email"
-		check_email 'Committer' "$committer_email"
+		check_name 'Commit(ter)' "$committer_name"
+		check_email 'Commit(ter)' "$committer_email"
 
-		subject="$(git "${REPO_PATH[@]}" show -s --format=%s "$commit")"
-		echo
-		info 'Checking subject:'
-		echo "$subject"
-		check_subject "$subject" "$author_email"
+		subject="$(git_format '%s')"
+		check_subject "$subject"
 
-		body="$(git "${REPO_PATH[@]}" show -s --format=%b "$commit")"
-		sob="$(git "${REPO_PATH[@]}" show -s --format='Signed-off-by: %aN <%aE>' "$commit")"
-		echo
-		info 'Checking body:'
-		echo "$body"
-		echo
-		check_body "$body" "$sob" "$author_email"
+		reset_reasons "$author_email"
 
-		info "=== Done checking commit '$commit'"
+		body="$(git_format '%b')"
+		sob="$(git_format 'Signed-off-by: %aN <%aE>' "$commit")"
+		check_body "$body" "$sob"
+
 		echo
 	done
 
 	output 'EOF'
 
-	exit $RET
+	exit "$FAIL"
 }
 
 main

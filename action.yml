@@ -39,7 +39,7 @@ runs:
       run: "$ACTION_PATH/src/check_formalities.sh"
       env:
         ACTION_PATH: ${{ github.action_path }}
-        BRANCH: ${{ github.base_ref }}
+        BASE_BRANCH: origin/${{ github.base_ref }}
         EXCLUDE_DEPENDABOT: ${{ inputs.exclude_dependabot }}
         EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
 

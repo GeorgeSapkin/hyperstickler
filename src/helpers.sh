@@ -6,10 +6,6 @@ color_out() {
 	printf "\e[0;$1m%s%s\e[0m\n" "${PKG_NAME:+$PKG_NAME: }" "$2"
 }
 
-success() {
-	color_out 32 "$1"
-}
-
 info() {
 	color_out 36 "$1"
 }
@@ -29,7 +25,13 @@ err_die() {
 
 # Prints the string and colors the part after the given length in red
 split_fail() {
-	printf "%s\e[1;31m%s\e[0m\n" "${2:0:$1}" "${2:$1}"
+	printf "$3%s\e[1;31m%s\e[0m\n" "${2:0:$1}" "${2:$1}"
+}
+
+# Prints the string and colors the part between $1 and $2 in yellow, after $2 in
+# red
+split_fail_ex() {
+	printf "$4%s\e[1;33m%s\e[1;31m%s\e[0m\n" "${3:0:$1}" "${3:$1:$(($2 - $1))}" "${3:$2}"
 }
 
 # Prints `[$2] $3` with status colored according to `$1`
@@ -50,4 +52,9 @@ status_warn() {
 # Prints `[fail] $1` with red fail
 status_fail() {
 	status 31 fail "$1"
+}
+
+# Prints `[skip] $1` with default-colored skip
+status_skip() {
+	status 39 skip "$1"
 }
