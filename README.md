@@ -83,6 +83,11 @@ Issues marked with an :x: are failing checks.
 Something broken? Consider [providing feedback](
 https://github.com/openwrt/actions-shared-workflows/issues).
 
+## Tests
+
+```bash
+src/test.sh /tmp/some-tmp-path
+```
 
 ## License
 
