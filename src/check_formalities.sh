@@ -210,6 +210,8 @@ is_revert()            { grep -qEe '^Revert ' <<< "$1"; }
 # shellcheck disable=SC2329
 omits()                { ! grep -qF "$2" <<< "$1"; }
 show_legend()          { [ "$SHOW_LEGEND" = 'true' ]; }
+# shellcheck disable=SC2329
+starts_with_space()    { grep -qEe "^[[:space:]]" <<< "$1"; }
 
 have_exceptions() { [ "${#EXCEPTION_NAMES[@]}" -gt 0 ]; }
 
@@ -396,6 +398,10 @@ check_subject() {
 	local subject="$1"
 
 	is_revert "$subject" && push_reason 'revert commit'
+
+	check \
+		-rule 'Commit subject must not start with whitespace' \
+		-fail-if starts_with_space "$subject"
 
 	local reason='missing prefix'
 	# shellcheck disable=SC2016

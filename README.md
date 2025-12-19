@@ -13,6 +13,7 @@ Commit & PR formalities checker based on the OpenWrt [submission guidelines](
 - Commit(ter) name must be either a real name 'firstname lastname' or a
   nickname/alias/handle
 - Commit(ter) email must not be a GitHub noreply email
+- Commit subject must not start with whitespace
 - Commit subject must start with `<package name or prefix>: `
 - Commit subject must start with a lower-case word after the prefix
 - Commit subject must not end with a period

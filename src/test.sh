@@ -170,7 +170,7 @@ run_test 'Good commit with a list' 0 0 1 \
 
 Signed-off-by: Good Author <good.author@example.com>'
 
-run_test 'Revert commit' 0 0 5 \
+run_test 'Revert commit' 0 0 6 \
 'Revert Author' 'revert.author@example.com' \
 "Revert 'package: add new feature'" \
 'This reverts commit.
@@ -214,6 +214,13 @@ run_test 'Bad author email (GitHub noreply)' 3 0 1 \
 'Author email is a GitHub noreply address.
 
 Signed-off-by: Bad Email <bad.email@users.noreply.github.com>'
+
+run_test 'Subject: starts with whitespace' 2 0 2 \
+'Good Author' 'good.author@example.com' \
+' package: subject starts with whitespace' \
+'This commit should fail.
+
+Signed-off-by: Good Author <good.author@example.com>'
 
 run_test 'Subject: no prefix' 1 0 2 \
 'Good Author' 'good.author@example.com' \
@@ -286,7 +293,7 @@ Signed-off-by: Good Author <good.author@example.com>'
 # Exception tests
 
 export EXCLUDE_DEPENDABOT='true'
-run_test 'Exception: dependabot' 0 0 12 \
+run_test 'Exception: dependabot' 0 0 13 \
 'dependabot[bot]' 'dependabot[bot]@users.noreply.github.com' \
 'CI: bump something from 1 to 2' \
 'This commit should skip most tests.'
@@ -298,7 +305,7 @@ run_test 'No exception: dependabot' 3 2 2 \
 'This commit should fail most tests.'
 
 export EXCLUDE_WEBLATE='true'
-run_test 'Exception: weblate' 0 0 12 \
+run_test 'Exception: weblate' 0 0 13 \
 'Hosted Weblate' 'hosted@weblate.org' \
 'Translated using Weblate (English)' \
 'This commit should skip most tests.'
