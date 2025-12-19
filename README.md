@@ -35,53 +35,53 @@ All inputs are optional.
 ### `check_signoff`
 
 - Check if `Signed-off-by` exists and matches author.
-- Defaults to `false`.
+- Default: `false`.
 
 ### `exclude_dependabot`
 
 - Exclude commits authored by dependabot from some checks.
-- Defaults to `true`.
+- Default: `true`.
 
 ### `exclude_weblate`
 
 - Exclude commits authored by Weblate from some checks.
-- Defaults to `false`.
+- Default: `false`.
 
 ### `feedback_url`
 
 - URL to provide feedback to.
-- Defaults to HyperStickler repository.
+- Default: HyperStickler repository.
 
 ### `guideline_url`
 
 - Submission guideline URL used in PR comments.
-- Default to: https://www.kernel.org/doc/html/latest/process/submitting-patches.html
+- Default: https://www.kernel.org/doc/html/latest/process/submitting-patches.html
 
 ### `max_body_line_len`
 
 - Max body line length. Longer lines result in a warning.
-- Default to 75.
+- Default: 75.
 
 ### `max_subject_len_hard`
 
 - Hard max subject line length limit. Longer subjects fails check.
-- Default to 60.
+- Default: 60.
 
 ### `max_subject_len_soft`
 
 - Soft max subject line length limit. Longer subjects result in a warning.
-- Default to 50.
+- Default: 50.
 
 ### `post_comment`
 
 - Post summaries to the pull request.
-- Defaults to `false`.
+- Default: `false`.
 
 ### `warn_on_no_modify`
 
 - Warn when PR edits by maintainers are not allowed. Requires `post_comment` to
   be `true`.
-- Defaults to `false`.
+- Default: `false`.
 
 ## Permissions
 
@@ -115,8 +115,6 @@ jobs:
 ![Example output](assets/output.png)
 
 ## Example status comment
-
-
 
 > [!WARNING]
 >
@@ -207,13 +205,16 @@ Issues marked with an :x: are failing checks.
 
 For more details, see the [full job log](https://github.com/GeorgeSapkin/hyperstickler/actions/runs/20320845251/job/58375970465?pr=1#step:4:1).
 
-
 <sub>Something broken? Consider [providing feedback](https://github.com/georgesapkin/hyperstickler/issues).</sub>
 
 ## Tests
 
+Tests use `/tmp` to create a temporary git repository in. Otherwise an
+alternative test path can be passed to the test script that will be created
+before running tests and removed afterwards.
+
 ```bash
-src/test.sh
+src/test.sh /optional/path/to/test/repo
 ```
 
 ## License
