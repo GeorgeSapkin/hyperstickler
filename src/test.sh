@@ -292,12 +292,22 @@ run_test 'Exception: dependabot' 0 0 12 \
 'This commit should skip most tests.'
 export EXCLUDE_DEPENDABOT='false'
 
+run_test 'No exception: dependabot' 3 2 2 \
+'dependabot[bot]' 'dependabot[bot]@users.noreply.github.com' \
+'CI: bump something from 1 to 2' \
+'This commit should fail most tests.'
+
 export EXCLUDE_WEBLATE='true'
 run_test 'Exception: weblate' 0 0 12 \
 'Hosted Weblate' 'hosted@weblate.org' \
 'Translated using Weblate (English)' \
 'This commit should skip most tests.'
 export EXCLUDE_WEBLATE='false'
+
+run_test 'No exception: weblate' 2 0 3 \
+'Hosted Weblate' 'hosted@weblate.org' \
+'Translated using Weblate (English)' \
+'This commit should fail most tests.'
 
 # Merge commit test
 

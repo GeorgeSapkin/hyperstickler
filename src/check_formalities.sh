@@ -170,6 +170,7 @@ output_split_fail_ex() {
 		"${3:0:$1}" "${3:$1:$(($2 - $1))}" "${3:$2}" >> "$GITHUB_OUTPUT"
 }
 
+# shellcheck disable=SC2329
 check_signoff()        { [ "$CHECK_SIGNOFF" = 'true' ]; }
 # shellcheck disable=SC2329
 do_not_check_signoff() { ! check_signoff; }
@@ -280,11 +281,9 @@ check() {
 	local skip_fn skip_args
 	local skip_reason
 	local fn arity
+	local flag fn_args
 	local always=0
 
-	skip_reason=$(peak_reason)
-
-	local flag fn_args
 	while [ $# -gt 0 ]; do
 		case "$1" in
 			-rule)          rule="$2";          shift ;;
@@ -338,15 +337,13 @@ check() {
 
 	# Check order matters
 	# - if skip function is set and check passes
-	# - if skip function is not set and skip reason is set
-	# - if skip function is set and there is a skip reason in the stack
-	if { [ -n "$skip_fn" ] && "$skip_fn" "${skip_args[@]}"; } ||
-		{ [ "$always" = 0 ] && {
-			{ [ -z "$skip_fn" ] && [ -n "$skip_reason" ]; } ||
-			{ [ -n "$skip_fn" ] && have_reasons; }
-		} }
-	then
-		[ -z "$skip_reason" ] && skip_reason="$(peak_reason)"
+	# - if not always and there is a skip reason in the stack
+	if [ -n "$skip_fn" ] && "$skip_fn" "${skip_args[@]}"; then
+		output_skip "$rule" "$skip_reason"
+		return "$RES_SKIP"
+
+	elif [ "$always" = 0 ] && have_reasons; then
+		skip_reason="$(peak_reason)"
 		output_skip "$rule" "$skip_reason"
 		return "$RES_SKIP"
 
