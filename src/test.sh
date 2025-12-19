@@ -331,4 +331,6 @@ echo
 echo 'Test suite finished'
 echo "Summary: $PASS_COUNT/$TEST_COUNT tests passed"
 
-[ "$PASS_COUNT" != "$TEST_COUNT" ] && exit 1
+[ "$PASS_COUNT" != "$TEST_COUNT" ] \
+	&& exit 1 \
+	|| exit 0
