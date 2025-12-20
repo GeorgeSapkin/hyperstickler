@@ -574,7 +574,9 @@ main() {
 
 			echo
 		done
+		exit "$FAIL"
 	}
+	FAIL=$?
 
 	output 'EOF'
 

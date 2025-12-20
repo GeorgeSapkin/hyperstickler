@@ -126,6 +126,7 @@ run_test() {
 
 	set +e
 	output=$("$CHECKER_SCRIPT" "$REPO_DIR" 2>&1)
+	local exit_code=$?
 	set -e
 
 	# Move cursor to the beginning of the line and clear it
@@ -137,6 +138,27 @@ run_test() {
 		status_fail "$description"
 		echo "       Injection test failed: file '$injection_file' was created."
 		rm -f "$injection_file"
+	fi
+
+	local raw_output="$output"
+	output=""
+
+	local expect_failure=0
+	for res in "${expected_results[@]}"; do
+		if [ "$res" = 1 ]; then
+			expect_failure=1
+			break
+		fi
+	done
+
+	if [ "$expect_failure" = 1 ]; then
+		if [ "$exit_code" = 0 ]; then
+			fail=1
+			output+=$'\e[1;31mExpected test failure, but got exit code 0\e[0m\n\n'
+		fi
+	elif [ "$exit_code" != 0 ]; then
+		fail=1
+		output+=$'\e[1;31mExpected test success, but got exit code '"$exit_code"$'\e[0m\n\n'
 	fi
 
 	while IFS= read -r line; do
@@ -171,7 +193,7 @@ run_test() {
 		else
 			output+="$line"$'\n'
 		fi
-	done <<< "$output"
+	done <<< "$raw_output"
 
 	if [ "$check_idx" -lt "${#expected_results[@]}" ]; then
 		fail=1
@@ -183,7 +205,7 @@ run_test() {
 		PASS_COUNT=$((PASS_COUNT + 1))
 	else
 		[ "$injection_failed" = 0 ] && status_fail "$description"
-		echo $'\n       Output:'
+		output+=$'\n       Output:'
 		# shellcheck disable=SC2001
 		sed 's/^/       /' <<< "$output"
 	fi
