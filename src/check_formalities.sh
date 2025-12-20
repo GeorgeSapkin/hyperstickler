@@ -34,6 +34,8 @@ EMOJI_FAIL=':x:'
 
 PREFIX_REGEX='^([0-9A-Za-z,+/._-]+: )+'
 
+declare -A ARITY
+
 RES_FAIL=3
 RES_SKIP=1
 RES_WARN=2
@@ -192,35 +194,43 @@ check_signoff()        { [ "$CHECK_SIGNOFF" = 'true' ]; }
 # shellcheck disable=SC2329
 do_not_check_signoff() { ! check_signoff; }
 # shellcheck disable=SC2329
-ends_with_period()     { grep -qEe "\.$" <<< "$1"; }
+ends_with_period()     { [[ "$1" =~ \.$ ]]; }
 exclude_dependabot()   { [ "$EXCLUDE_DEPENDABOT" = 'true' ]; }
 exclude_weblate()      { [ "$EXCLUDE_WEBLATE" = 'true' ]; }
 has_base()             { [ -n "$BASE_BRANCH" ]; }
 # shellcheck disable=SC2329
-has_no_prefix()        { ! grep -qEe "$PREFIX_REGEX" <<< "$1"; }
+has_no_prefix()        { [[ ! "$1" =~ $PREFIX_REGEX ]]; }
 # shellcheck disable=SC2329
-is_first_word_caps()   { grep -qEe "${PREFIX_REGEX}[A-Z]" <<< "$1"; }
+is_first_word_caps()   { [[ "$1" =~ ${PREFIX_REGEX}[A-Z] ]]; }
 # shellcheck disable=SC2329
-is_body_empty()        { ! echo "$1" | grep -v 'Signed-off-by:' | grep -q '[^[:space:]]'; }
-# shellcheck disable=SC2329
-is_github_noreply()    { grep -iqF "$GITHUB_NOREPLY_EMAIL" <<< "$1"; }
+is_github_noreply()    { [[ "${1,,}" == *"${GITHUB_NOREPLY_EMAIL,,}"* ]]; }
 # shellcheck disable=SC2329
 is_gt()                { [ "$1" -gt "$2" ]; }
 # shellcheck disable=SC2329
 is_main_branch()       { [[ "$1" =~ ^(origin/)?(main|master)$ ]]; }
 # shellcheck disable=SC2329
-is_merge()             { grep -qF ' ' <<< "$1"; }
+is_merge()             { [[ "$1" == *" "* ]]; }
 # shellcheck disable=SC2329
-is_not_alias()         { ! grep -qEe '\S' <<< "$1"; }
+is_not_alias()         { [[ ! "$1" =~ [^[:space:]] ]]; }
 # shellcheck disable=SC2329
-is_not_name()          { ! grep -qEe '\S+\s\S+' <<< "$1"; }
-is_revert()            { grep -qEe '^Revert ' <<< "$1"; }
+is_not_name()          { [[ ! "$1" =~ [^[:space:]]+[[:space:]][^[:space:]]+ ]]; }
+is_revert()            { [[ "$1" == "Revert "* ]]; }
 # shellcheck disable=SC2329
-omits()                { ! grep -qF "$2" <<< "$1"; }
+omits()                { [[ "$1" != *"$2"* ]]; }
 show_legend()          { [ "$SHOW_LEGEND" = 'true' ]; }
 show_feedback()        { [ -n "$FEEDBACK_URL" ]; }
 # shellcheck disable=SC2329
-starts_with_space()    { grep -qEe "^[[:space:]]" <<< "$1"; }
+starts_with_space()    { [[ "$1" =~ ^[[:space:]] ]]; }
+
+# shellcheck disable=SC2329
+is_body_empty()        {
+	local line
+	while IFS= read -r line; do
+		[[ "$line" == *"Signed-off-by:"* ]] && continue
+		[[ "$line" =~ [^[:space:]] ]] && return 1
+	done <<< "$1"
+	return 0
+}
 
 have_exceptions() { [ "${#EXCEPTION_NAMES[@]}" -gt 0 ]; }
 
@@ -236,7 +246,7 @@ is_exception() {
 	fi
 
 	for idx in "${!EXCEPTION_EMAILS[@]}"; do
-		if grep -iqF "${EXCEPTION_EMAILS[$idx]}" <<< "$email"; then
+		if [[ "${email,,}" == *"${EXCEPTION_EMAILS[$idx],,}"* ]]; then
 			echo "${EXCEPTION_NAMES[$idx]}"
 			return 0
 		fi
@@ -277,20 +287,25 @@ reset_reasons() {
 
 get_arity() {
 	local fn_name="$1"
+	if [ -n "${ARITY[$fn_name]}" ]; then
+		echo "${ARITY[$fn_name]}"
+		return
+	fi
+
 	local fn_body
 	fn_body=$(declare -f "$fn_name")
 
 	# Count the highest number used in a positional parameter like $1, $2, etc.
-	local arity
-	arity=$(echo "$fn_body" | grep -o '\$[0-9]\+' | sed 's/\$//' | sort -rn | head -n1)
+	local arity=0
+	while [[ "$fn_body" =~ \$\{?([0-9]+) ]]; do
+		local val="${BASH_REMATCH[1]}"
+		[ "$val" -gt "$arity" ] && arity="$val"
+		fn_body="${fn_body#*"${BASH_REMATCH[0]}"}"
+	done
 
-	if [ -z "$arity" ]; then
-		echo 0
-	else
-		echo "$arity"
-	fi
+	ARITY[$fn_name]=$arity
+	echo "$arity"
 }
-
 
 # To prevent command injection from malicious commit data, instead of using
 # `eval`, this takes a function name and arguments for conditions separately.
@@ -320,15 +335,13 @@ check() {
 			-skip-if|-fail-if|-warn-if)
 				flag="${1#-}"
 				flag="${flag%-if}"
-				declare "${flag}_fn=$2"
 				if ! declare -F "$2" >/dev/null; then
 					err_die "Bad function name provided to '$1': '$2'"
 				fi
+				fn="$2"
 				shift 2
 
-				# Get the actual function name from the declare above and check
-				# its arity
-				fn=$(declare -p "${flag}_fn" | sed -e "s/.*\"\(.*\)\"/\1/")
+				declare "${flag}_fn=$fn"
 				arity=$(get_arity "$fn")
 				fn_args=()
 				# Parse up to the arity number of arguments
@@ -349,9 +362,7 @@ check() {
 				continue
 				;;
 
-			*)
-				err_die "Bad check flag: '$1'"
-				;;
+			*) err_die "Bad check flag: '$1'" ;;
 		esac
 		shift
 	done
