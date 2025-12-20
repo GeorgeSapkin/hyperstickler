@@ -216,8 +216,8 @@ starts_with_space()    { grep -qEe "^[[:space:]]" <<< "$1"; }
 have_exceptions() { [ "${#EXCEPTION_NAMES[@]}" -gt 0 ]; }
 
 push_exception() {
-	EXCEPTION_NAMES[${#EXCEPTION_NAMES[@]}]="$1";
-	EXCEPTION_EMAILS[${#EXCEPTION_EMAILS[@]}]="$2";
+	EXCEPTION_NAMES+=("$1")
+	EXCEPTION_EMAILS+=("$2")
 }
 
 is_exception() {
@@ -251,7 +251,7 @@ is_reason()       { have_reasons && [ "${SKIP_REASONS[-1]}" = "$1" ]; }
 peak_reason()     { have_reasons && echo "${SKIP_REASONS[-1]}"; }
 pop_reason()      { unset "SKIP_REASONS[-1]"; }
 pop_if_reason()   { is_reason "$1" && pop_reason; }
-push_reason()     { SKIP_REASONS[${#SKIP_REASONS[@]}]="$1"; }
+push_reason()     { SKIP_REASONS+=("$1"); }
 
 reset_reasons() {
 	local author_email="$1"
