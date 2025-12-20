@@ -6,11 +6,12 @@
 
 set -e
 
+# Default exports
 export BASE_BRANCH='main'
+export CHECK_SIGNOFF='true'
 export HEAD_BRANCH='feature-branch'
 export PR_NUMBER='123'
 export SHOW_LEGEND='false'
-export CHECK_SIGNOFF='true'
 
 REPO_DIR="${1:-}"
 
@@ -21,32 +22,367 @@ source "$(dirname "$(readlink -f "$0")")/helpers.sh"
 TEST_COUNT=0
 PASS_COUNT=0
 
-EXP_GOOD="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3"
-EXP_DOUBLE_PREFIX="$EXP_GOOD"
-EXP_BAD_CHECK_PARSE="$EXP_GOOD"
-EXP_REVERT="0 0 0 0 0 0 3 3 3 3 3 0 0 0 0 3"
-EXP_MALICIOUS_SHELL="$EXP_GOOD"
-EXP_MALICIOUS_CHECK="$EXP_GOOD"
-EXP_NO_SOB_CHECK="0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3"
-EXP_BAD_SOB_CHECK="$EXP_NO_SOB_CHECK"
-EXP_BAD_EMAIL="0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 3"
-EXP_SUBJ_SPACE="0 0 0 0 0 0 1 1 3 0 0 0 0 0 0 3"
-EXP_SUBJ_NO_PREFIX="0 0 0 0 0 0 0 1 3 0 0 0 0 0 0 3"
-EXP_SUBJ_CAPS="0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3"
-EXP_SUBJ_PERIOD="0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 3"
-EXP_SUBJ_LONG_HARD="0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 3"
-EXP_SOB_MISS="0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3"
-EXP_SOB_BAD="$EXP_SOB_MISS"
-EXP_EMPTY_BODY="0 0 0 0 0 0 0 0 0 0 0 0 0 1 3 3"
-EXP_NAME_WARN="0 0 2 0 2 0 0 0 0 0 0 0 0 0 0 3"
-EXP_SUBJ_LONG_SOFT="0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 3"
-EXP_BODY_LONG="0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 3"
-EXP_DEPENDABOT_EXCEPT="0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3"
-EXP_DEPENDABOT_FAIL="0 0 2 1 2 1 0 0 0 0 0 1 3 0 0 3"
-EXP_WEBLATE_EXCEPT="$EXP_DEPENDABOT_EXCEPT"
-EXP_WEBLATE_FAIL="0 0 0 0 0 0 0 1 3 0 0 1 3 0 0 3"
-EXP_MERGE="0 1"
-EXP_PR_MASTER="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3"
+AUTHORS=()
+BODIES=()
+DESCRIPTIONS=()
+EMAILS=()
+EXPECTED_RESULTS=()
+INJECTIONS=()
+MERGES=()
+SUBJECTS=()
+
+ENV_CHECK_SIGNOFF=()
+ENV_EXCLUDE_DEPENDABOT=()
+ENV_EXCLUDE_WEBLATE=()
+ENV_HEAD_BRANCH=()
+
+define() {
+	local name expected author email subject body merge exists
+	local check_signoff exclude_dependabot exclude_weblate head_branch
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			-author)   author="$2";    shift ;;
+			-email)    email="$2";     shift ;;
+			-expected) expected="$2";  shift ;;
+			-exists)   exists="$2"; shift ;;
+			-merge)    merge="$2";     shift ;;
+			-subject)  subject="$2";   shift ;;
+			-test)     name="$2";      shift ;;
+
+			-body)
+				if [ -n "$2" ] && [[ "$2" != -* ]]; then
+					body="$2"
+					shift
+				else
+					body="$(cat)"
+				fi
+				;;
+
+			-check-signoff) check_signoff="$2";      shift ;;
+			-no-dependabot) exclude_dependabot="$2"; shift ;;
+			-no-weblate)    exclude_weblate="$2";    shift ;;
+			-head-branch)   head_branch="$2";        shift ;;
+			*)
+				err_die "Unknown argument to define: $1"
+				;;
+		esac
+		shift
+	done
+
+	AUTHORS+=("$author")
+	BODIES+=("$body")
+	DESCRIPTIONS+=("$name")
+	EMAILS+=("$email")
+	EXPECTED_RESULTS+=("$expected")
+	INJECTIONS+=("${exists:-}")
+	MERGES+=("${merge:-0}")
+	SUBJECTS+=("$subject")
+
+	ENV_CHECK_SIGNOFF+=("${check_signoff:-${CHECK_SIGNOFF:-}}")
+	ENV_EXCLUDE_DEPENDABOT+=("${exclude_dependabot:-${EXCLUDE_DEPENDABOT:-}}")
+	ENV_EXCLUDE_WEBLATE+=("${exclude_weblate:-${EXCLUDE_WEBLATE:-}}")
+	ENV_HEAD_BRANCH+=("${head_branch:-${HEAD_BRANCH:-}}")
+}
+
+define \
+	-test          'Good commit' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: add new feature' \
+	-body          <<-'EOF'
+		This commit follows all the rules.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Subject: double prefix' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'kernel: 6.18: add new feature' \
+	-body          <<-'EOF'
+		This commit follows all the rules.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Bad check parsing test' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: add new feature' \
+	-body          <<-'EOF'
+		- item 0
+		- item 1
+		- item 2
+		- item 3
+		- item 4
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Revert commit' \
+	-expected      '0 0 0 0 0 0 3 3 3 3 3 0 0 0 0 3' \
+	-author        'Revert Author' \
+	-email         'revert.author@example.com' \
+	-subject       "Revert 'package: add new feature'" \
+	-body          <<-'EOF'
+		This reverts commit.
+
+		Signed-off-by: Revert Author <revert.author@example.com>
+	EOF
+
+# shellcheck disable=SC2016
+define \
+	-test          'Body: malicious body shell injection' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: malicious body shell injection' \
+	-exists     '/tmp/pwned-by-body' \
+	-body          <<-'EOF'
+		$(touch /tmp/pwned-by-body)
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Body: malicious body check injection' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: malicious body check injection' \
+	-exists     '/tmp/pwned-by-check' \
+	-body          <<-'EOF'
+		-skip-if is_gt 1 0 && touch /tmp/pwned-by-check
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Body: missing Signed-off-by but check disabled' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: fail on missing signed-off-by' \
+	-body          'The Signed-off-by line is missing.' \
+	-check-signoff 'false'
+
+define \
+	-test          'Body: mismatched Signed-off-by but check disabled' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: fail on mismatched signed-off-by' \
+	-check-signoff 'false' \
+	-body          <<-'EOF'
+		The Signed-off-by line is for someone else.
+
+		Signed-off-by: Mismatched Person <mismatched@example.com>
+	EOF
+
+define \
+	-test          'Bad author email (GitHub noreply)' \
+	-expected      '0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 3' \
+	-author        'Bad Email' \
+	-email         'bad.email@users.noreply.github.com' \
+	-subject       'test: fail on bad author email' \
+	-body          <<-'EOF'
+		Author email is a GitHub noreply address.
+
+		Signed-off-by: Bad Email <bad.email@users.noreply.github.com>
+	EOF
+
+define \
+	-test          'Subject: starts with whitespace' \
+	-expected      '0 0 0 0 0 0 1 1 3 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       ' package: subject starts with whitespace' \
+	-body          <<-'EOF'
+		This commit should fail.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Subject: no prefix' \
+	-expected      '0 0 0 0 0 0 0 1 3 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'This subject has no prefix' \
+	-body          <<-'EOF'
+		This commit should fail.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Subject: capitalized first word' \
+	-expected      '0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: Capitalized first word' \
+	-body          <<-'EOF'
+		This commit should fail.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Subject: ends with a period' \
+	-expected      '0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: subject ends with a period.' \
+	-body          <<-'EOF'
+		This commit should fail.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Subject: too long (hard limit)' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: this subject is way too long and should fail the hard limit check of 60 chars' \
+	-body          <<-'EOF'
+		This commit should fail.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Body: missing Signed-off-by' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: fail on missing signed-off-by' \
+	-body          'The Signed-off-by line is missing.'
+
+define \
+	-test          'Body: mismatched Signed-off-by' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: fail on mismatched signed-off-by' \
+	-body          <<-'EOF'
+		The Signed-off-by line is for someone else.
+
+		Signed-off-by: Mismatched Person <mismatched@example.com>
+	EOF
+
+define \
+	-test          'Body: empty' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 1 3 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: fail on empty body' \
+	-body          'Signed-off-by: Good Author <good.author@example.com>'
+
+define \
+	-test          'Author name is a single word' \
+	-expected      '0 0 2 0 2 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Nickname' \
+	-email         'nickname@example.com' \
+	-subject       'test: warn on single-word author name' \
+	-body          <<-'EOF'
+		Author name is a single word.
+
+		Signed-off-by: Nickname <nickname@example.com>
+	EOF
+
+define \
+	-test          'Subject: too long (soft limit)' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: this subject is long and should trigger a warning' \
+	-body          <<-'EOF'
+		This commit should warn on subject length.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Body: line too long' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'test: warn on long body line' \
+	-body          <<-'EOF'
+		This line in the commit body is extremely long and should definitely exceed the seventy-five character limit imposed by the check script.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Exception: dependabot' \
+	-expected      '0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3' \
+	-author        'dependabot[bot]' \
+	-email         'dependabot[bot]@users.noreply.github.com' \
+	-subject       'CI: bump something from 1 to 2' \
+	-no-dependabot 'true' \
+	-body          <<-'EOF'
+		This commit should skip most tests.
+	EOF
+
+define \
+	-test          'No exception: dependabot' \
+	-expected      '0 0 2 1 2 1 0 0 0 0 0 1 3 0 0 3' \
+	-author        'dependabot[bot]' \
+	-email         'dependabot[bot]@users.noreply.github.com' \
+	-subject       'CI: bump something from 1 to 2' \
+	-body          <<-'EOF'
+		This commit should fail most tests.
+	EOF
+
+define \
+	-test          'Exception: weblate' \
+	-expected      '0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3' \
+	-author        'Hosted Weblate' \
+	-email         'hosted@weblate.org' \
+	-subject       'Translated using Weblate (English)' \
+	-no-weblate    'true' \
+	-body          <<-'EOF'
+		This commit should skip most tests.
+	EOF
+
+define \
+	-test          'No exception: weblate' \
+	-expected      '0 0 0 0 0 0 0 1 3 0 0 1 3 0 0 3' \
+	-author        'Hosted Weblate' \
+	-email         'hosted@weblate.org' \
+	-subject       'Translated using Weblate (English)' \
+	-body          <<-'EOF'
+		This commit should fail most tests.
+	EOF
+
+define \
+	-test          'Merge commit' \
+	-expected      '0 1' \
+	-author        'Merge Author' \
+	-email         'merge.author@example.com' \
+	-subject       'feat: add something to be merged' \
+	-body          'This commit will be part of a merge.' \
+	-merge         1
+
+define \
+	-test          'PR from master' \
+	-expected      '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: add new feature' \
+	-head-branch   'master' \
+	-body          <<-'EOF'
+		This commit follows all the rules but PR doesn't.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
 
 cleanup() {
 	if [ -d "$REPO_DIR" ]; then
@@ -213,224 +549,54 @@ run_test() {
 	git reset --hard HEAD~1 >/dev/null
 }
 
-if [ -z "$REPO_DIR" ]; then
-	REPO_DIR=$(mktemp -d)
-else
-	if [ -d "$REPO_DIR" ]; then
-		echo "Test repository '$REPO_DIR' already exists" >&2
-		exit 1
+main() {
+	if [ -z "$REPO_DIR" ]; then
+		REPO_DIR=$(mktemp -d)
+	else
+		if [ -d "$REPO_DIR" ]; then
+			echo "Test repository '$REPO_DIR' already exists" >&2
+			exit 1
+		fi
+		mkdir "$REPO_DIR"
 	fi
-	mkdir "$REPO_DIR"
-fi
 
-cd "$REPO_DIR"
+	cd "$REPO_DIR"
 
-git init -b "$BASE_BRANCH"
-git config user.name 'Test User'
-git config user.email 'test.user@example.com'
+	git init -b "$BASE_BRANCH"
+	git config user.name 'Test User'
+	git config user.email 'test.user@example.com'
 
-commit 'Initial Committer' 'initial@example.com' \
-'initial: commit' \
-'This is the first main commit.' >/dev/null
+	commit 'Initial Committer' 'initial@example.com' \
+	'initial: commit' \
+	'This is the first main commit.' >/dev/null
 
-git switch -C "$HEAD_BRANCH"
+	git switch -C "$HEAD_BRANCH"
 
-echo $'\nStarting test suite\n'
+	echo $'\nStarting test suite\n'
 
-# Good commits
+	for i in "${!DESCRIPTIONS[@]}"; do
+		export CHECK_SIGNOFF="${ENV_CHECK_SIGNOFF[$i]}"
+		export EXCLUDE_DEPENDABOT="${ENV_EXCLUDE_DEPENDABOT[$i]}"
+		export EXCLUDE_WEBLATE="${ENV_EXCLUDE_WEBLATE[$i]}"
+		export HEAD_BRANCH="${ENV_HEAD_BRANCH[$i]}"
 
-run_test 'Good commit' "$EXP_GOOD" \
-'Good Author' 'good.author@example.com' \
-'package: add new feature' \
-'This commit follows all the rules.
+		run_test \
+			"${DESCRIPTIONS[$i]}" \
+			"${EXPECTED_RESULTS[$i]}" \
+			"${AUTHORS[$i]}" \
+			"${EMAILS[$i]}" \
+			"${SUBJECTS[$i]}" \
+			"${BODIES[$i]}" \
+			"${MERGES[$i]}" \
+			"${INJECTIONS[$i]}"
+	done
 
-Signed-off-by: Good Author <good.author@example.com>'
+	echo $'\nTest suite finished'
+	echo "Summary: $PASS_COUNT/$TEST_COUNT tests passed"
 
-run_test 'Subject: double prefix' "$EXP_DOUBLE_PREFIX" \
-'Good Author' 'good.author@example.com' \
-'kernel: 6.18: add new feature' \
-'This commit follows all the rules.
+	[ "$PASS_COUNT" != "$TEST_COUNT" ] \
+		&& exit 1 \
+		|| exit 0
+}
 
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Bad check parsing test' "$EXP_BAD_CHECK_PARSE" \
-'Good Author' 'good.author@example.com' \
-'package: add new feature' \
-'- item 0
-- item 1
-- item 2
-- item 3
-- item 4
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Revert commit' "$EXP_REVERT" \
-'Revert Author' 'revert.author@example.com' \
-"Revert 'package: add new feature'" \
-'This reverts commit.
-
-Signed-off-by: Revert Author <revert.author@example.com>'
-
-# shellcheck disable=SC2016
-run_test 'Body: malicious body shell injection' "$EXP_MALICIOUS_SHELL" \
-'Good Author' 'good.author@example.com' \
-'test: malicious body shell injection' \
-'$(touch /tmp/pwned-by-body)
-Signed-off-by: Good Author <good.author@example.com>' \
-0 '/tmp/pwned-by-body'
-
-run_test 'Body: malicious body check injection' "$EXP_MALICIOUS_CHECK" \
-'Good Author' 'good.author@example.com' \
-'test: malicious body check injection' \
-'-skip-if is_gt 1 0 && touch /tmp/pwned-by-check
-Signed-off-by: Good Author <good.author@example.com>' \
-0 '/tmp/pwned-by-check'
-
-export CHECK_SIGNOFF='false'
-run_test 'Body: missing Signed-off-by but check disabled' "$EXP_NO_SOB_CHECK" \
-'Good Author' 'good.author@example.com' \
-'test: fail on missing signed-off-by' \
-'The Signed-off-by line is missing.'
-
-run_test 'Body: mismatched Signed-off-by but check disabled' "$EXP_BAD_SOB_CHECK" \
-'Good Author' 'good.author@example.com' \
-'test: fail on mismatched signed-off-by' \
-'The Signed-off-by line is for someone else.
-
-Signed-off-by: Mismatched Person <mismatched@example.com>'
-export CHECK_SIGNOFF='true'
-
-# Commits with failures
-
-run_test 'Bad author email (GitHub noreply)' "$EXP_BAD_EMAIL" \
-'Bad Email' 'bad.email@users.noreply.github.com' \
-'test: fail on bad author email' \
-'Author email is a GitHub noreply address.
-
-Signed-off-by: Bad Email <bad.email@users.noreply.github.com>'
-
-run_test 'Subject: starts with whitespace' "$EXP_SUBJ_SPACE" \
-'Good Author' 'good.author@example.com' \
-' package: subject starts with whitespace' \
-'This commit should fail.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Subject: no prefix' "$EXP_SUBJ_NO_PREFIX" \
-'Good Author' 'good.author@example.com' \
-'This subject has no prefix' \
-'This commit should fail.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Subject: capitalized first word' "$EXP_SUBJ_CAPS" \
-'Good Author' 'good.author@example.com' \
-'package: Capitalized first word' \
-'This commit should fail.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Subject: ends with a period' "$EXP_SUBJ_PERIOD" \
-'Good Author' 'good.author@example.com' \
-'package: subject ends with a period.' \
-'This commit should fail.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Subject: too long (hard limit)' "$EXP_SUBJ_LONG_HARD" \
-'Good Author' 'good.author@example.com' \
-'package: this subject is way too long and should fail the hard limit check of 60 chars' \
-'This commit should fail.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Body: missing Signed-off-by' "$EXP_SOB_MISS" \
-'Good Author' 'good.author@example.com' \
-'test: fail on missing signed-off-by' \
-'The Signed-off-by line is missing.'
-
-run_test 'Body: mismatched Signed-off-by' "$EXP_SOB_BAD" \
-'Good Author' 'good.author@example.com' \
-'test: fail on mismatched signed-off-by' \
-'The Signed-off-by line is for someone else.
-
-Signed-off-by: Mismatched Person <mismatched@example.com>'
-
-run_test 'Body: empty' "$EXP_EMPTY_BODY" \
-'Good Author' 'good.author@example.com' \
-'test: fail on empty body' \
-'Signed-off-by: Good Author <good.author@example.com>'
-
-# Commits with warnings
-
-run_test 'Author name is a single word' "$EXP_NAME_WARN" \
-'Nickname' 'nickname@example.com' \
-'test: warn on single-word author name' \
-'Author name is a single word.
-
-Signed-off-by: Nickname <nickname@example.com>'
-
-run_test 'Subject: too long (soft limit)' "$EXP_SUBJ_LONG_SOFT" \
-'Good Author' 'good.author@example.com' \
-'package: this subject is long and should trigger a warning' \
-'This commit should warn on subject length.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-run_test 'Body: line too long' "$EXP_BODY_LONG" \
-'Good Author' 'good.author@example.com' \
-'test: warn on long body line' \
-'This line in the commit body is extremely long and should definitely exceed the seventy-five character limit imposed by the check script.
-
-Signed-off-by: Good Author <good.author@example.com>'
-
-# Exception tests
-
-export EXCLUDE_DEPENDABOT='true'
-run_test 'Exception: dependabot' "$EXP_DEPENDABOT_EXCEPT" \
-'dependabot[bot]' 'dependabot[bot]@users.noreply.github.com' \
-'CI: bump something from 1 to 2' \
-'This commit should skip most tests.'
-export EXCLUDE_DEPENDABOT='false'
-
-run_test 'No exception: dependabot' "$EXP_DEPENDABOT_FAIL" \
-'dependabot[bot]' 'dependabot[bot]@users.noreply.github.com' \
-'CI: bump something from 1 to 2' \
-'This commit should fail most tests.'
-
-export EXCLUDE_WEBLATE='true'
-run_test 'Exception: weblate' "$EXP_WEBLATE_EXCEPT" \
-'Hosted Weblate' 'hosted@weblate.org' \
-'Translated using Weblate (English)' \
-'This commit should skip most tests.'
-export EXCLUDE_WEBLATE='false'
-
-run_test 'No exception: weblate' "$EXP_WEBLATE_FAIL" \
-'Hosted Weblate' 'hosted@weblate.org' \
-'Translated using Weblate (English)' \
-'This commit should fail most tests.'
-
-# Merge commit test
-
-run_test 'Merge commit' "$EXP_MERGE" \
-'Merge Author' 'merge.author@example.com' \
-'feat: add something to be merged' \
-'This commit will be part of a merge.' \
-1
-
-# PR from master test
-
-export HEAD_BRANCH='master'
-run_test 'PR from master' "$EXP_PR_MASTER" \
-'Good Author' 'good.author@example.com' \
-'package: add new feature' \
-"This commit follows all the rules but PR doesn't.
-
-Signed-off-by: Good Author <good.author@example.com>"
-
-echo $'\nTest suite finished'
-echo "Summary: $PASS_COUNT/$TEST_COUNT tests passed"
-
-[ "$PASS_COUNT" != "$TEST_COUNT" ] \
-	&& exit 1 \
-	|| exit 0
+main
