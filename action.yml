@@ -20,7 +20,7 @@ inputs:
     default: 'false'
     required: false
   feedback_url:
-    description: 'URL to provide feedback to'
+    description: 'URL to provide feedback to. If empty, no feedback text will be added to either console log or comment.'
     default: 'https://github.com/georgesapkin/hyperstickler/issues'
     required: false
   guideline_url:

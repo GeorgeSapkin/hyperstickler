@@ -50,7 +50,8 @@ All inputs are optional.
 
 ### `feedback_url`
 
-- URL to provide feedback to.
+- URL to provide feedback to. If empty, no feedback text will be added to either
+  console log or comment.
 - Default: HyperStickler repository.
 
 ### `guideline_url`

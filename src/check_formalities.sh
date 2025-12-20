@@ -27,7 +27,7 @@ DEPENDABOT_EMAIL='dependabot[bot]@users.noreply.github.com'
 GITHUB_NOREPLY_EMAIL='@users.noreply.github.com'
 WEBLATE_EMAIL='hosted@weblate.org'
 
-FEEDBACK_URL=${FEEDBACK_URL:-'https://github.com/georgesapkin/hyperstickler/issues'}
+FEEDBACK_URL=${FEEDBACK_URL:-}
 
 EMOJI_WARN=':large_orange_diamond:'
 EMOJI_FAIL=':x:'
@@ -68,6 +68,14 @@ GIT_FORMAT="${_F}${GIT_HEADER}${_F}${GIT_VARS}${_R}"
 ACTION_PATH=${ACTION_PATH:+"$ACTION_PATH/src"}
 ACTION_PATH=${ACTION_PATH:-$(dirname "$(readlink -f "$0")")}
 source "$ACTION_PATH/helpers.sh"
+
+feedback() {
+	cat <<-EOF
+	Something broken? Consider providing feedback:
+	${FEEDBACK_URL}
+
+	EOF
+}
 
 legend() {
 	info 'Legend:'
@@ -210,6 +218,7 @@ is_revert()            { grep -qEe '^Revert ' <<< "$1"; }
 # shellcheck disable=SC2329
 omits()                { ! grep -qF "$2" <<< "$1"; }
 show_legend()          { [ "$SHOW_LEGEND" = 'true' ]; }
+show_feedback()        { [ -n "$FEEDBACK_URL" ]; }
 # shellcheck disable=SC2329
 starts_with_space()    { grep -qEe "^[[:space:]]" <<< "$1"; }
 
@@ -244,6 +253,7 @@ check_exceptions() {
 	else
 		echo 'Enabled exceptions: none'
 	fi
+	echo
 }
 
 have_reasons()    { [ "${#SKIP_REASONS[@]}" -gt 0 ]; }
@@ -502,15 +512,8 @@ main() {
 	# Initialize GitHub actions output
 	output 'content<<EOF'
 
-	cat <<-EOF
-	Something broken? Consider providing feedback:
-	${FEEDBACK_URL}
-
-	EOF
-
+	show_feedback && feedback
 	check_exceptions
-	echo
-
 	show_legend && legend
 
 	info "Checking PR #$PR_NUMBER"

@@ -65,6 +65,10 @@ Issues marked with an :x: are failing checks.
 }
 
 function getFeedbackFooter({ feedbackUrl }) {
+  if (feedbackUrl == null || feedbackUrl.length === 0) {
+    return '';
+  }
+
   return `<sub>Something broken? Consider [providing feedback](${feedbackUrl}).</sub>`
 }
 
