@@ -137,7 +137,16 @@ jobs:
 
 Issues marked with an :x: are failing checks.
 
-### Commit 954a556fa0cd1b174f0d2bff7fbed52438e302e5
+### Commit [57b3864](https://github.com/GeorgeSapkin/hyperstickler/commit/57b3864c7a0ee80a22b697047ee499875c87ada6)
+
+- :x: Commit subject must start with `<package name or prefix>: `
+- :x: `Signed-off-by` must match author
+
+    Actual: missing or doesn't match author
+
+    Expected: `Signed-off-by: Hosted Weblate <hosted@weblate.org>`
+
+### Commit [5058449](https://github.com/GeorgeSapkin/hyperstickler/commit/50584490c6ca6342ba49ae6359a6170e0a4551a5)
 
 - :large_orange_diamond: Commit message lines should be <= 75 characters long
 
@@ -145,7 +154,7 @@ Issues marked with an :x: are failing checks.
 
     $\textsf{This line in the commit body is extremely long and should definitely exceed\color{red}{ the seventy-five character limit imposed by the check script.}}$
 
-### Commit 4c4e612b830bd8593a5ae086b70c5a10230478bc
+### Commit [2e99bff](https://github.com/GeorgeSapkin/hyperstickler/commit/2e99bffd521a723ddb7182fb339cb1d4e760d9c7)
 
 - :large_orange_diamond: Commit subject must be <= 60 (and should be <= 50) characters long
 
@@ -153,7 +162,7 @@ Issues marked with an :x: are failing checks.
 
     $\textsf{package: this subject is long and should trigger a\color{yellow}{ warning}\color{red}{}}$
 
-### Commit ac60037bfa75d8f0ef78fe180e7f5bd9676ec86b
+### Commit [fed351d](https://github.com/GeorgeSapkin/hyperstickler/commit/fed351d746be606f7f700521a9204b32ccde08a5)
 
 - :large_orange_diamond: Author name must be either a real name 'firstname lastname' or a nickname/alias/handle
 
@@ -161,11 +170,11 @@ Issues marked with an :x: are failing checks.
 
     Expected: a real name 'firstname lastname'
 
-### Commit a965c8c656ba12c54deb0d73712612a4af874714
+### Commit [5130080](https://github.com/GeorgeSapkin/hyperstickler/commit/513008085d21c6caed6e8d1f95be86da06bccd72)
 
 - :x: Commit message must exist
 
-### Commit dd7bf7a6e1ee1a4d68ffde6002f9f200e852a6f2
+### Commit [d13201a](https://github.com/GeorgeSapkin/hyperstickler/commit/d13201afdd96499f8f579192fd488670e98e9300)
 
 - :x: `Signed-off-by` must match author
 
@@ -173,7 +182,7 @@ Issues marked with an :x: are failing checks.
 
     Expected: `Signed-off-by: Good Author <good.author@example.com>`
 
-### Commit 9dc29e73d35bf7e8fe5f9075b64e9d276fba0d72
+### Commit [5f4c710](https://github.com/GeorgeSapkin/hyperstickler/commit/5f4c7105932e6cac4b87679f97fd9fcfbd1eb5ce)
 
 - :x: `Signed-off-by` must match author
 
@@ -181,7 +190,7 @@ Issues marked with an :x: are failing checks.
 
     Expected: `Signed-off-by: Good Author <good.author@example.com>`
 
-### Commit e84b5d73ad52a494dfc509c7aa351b5c796547fd
+### Commit [b26caff](https://github.com/GeorgeSapkin/hyperstickler/commit/b26caffdb7523ad42b29bedd25073e71c4a4a4ae)
 
 - :x: Commit subject must be <= 60 (and should be <= 50) characters long
 
@@ -189,19 +198,24 @@ Issues marked with an :x: are failing checks.
 
     $\textsf{package: this subject is way too long and should f\color{yellow}{ail the ha}\color{red}{rd limit check of 60 chars}}$
 
-### Commit fbfbc1fb6164d858898d504a7e6a69d539a376a7
+### Commit [d6ffd3d](https://github.com/GeorgeSapkin/hyperstickler/commit/d6ffd3d20b7ee0b249f9dc6bb29667520899085b)
 
 - :x: Commit subject must not end with a period
 
-### Commit 13819bbc12f8eb8fd3df842008e66bb6b4bde4f3
+### Commit [bb7a6f8](https://github.com/GeorgeSapkin/hyperstickler/commit/bb7a6f82016eac5091b86ebf5178f23957cbd216)
 
 - :x: Commit subject must start with a lower-case word after the prefix
 
-### Commit e352d5638f7bb2eccaa14b46f967197d0e2e2110
+### Commit [0f2c7e8](https://github.com/GeorgeSapkin/hyperstickler/commit/0f2c7e8f796f119c58bcb1be1fd0525757bef8c0)
 
 - :x: Commit subject must start with `<package name or prefix>: `
 
-### Commit d0bdf1f38dc3f7e7eb1c06a813289aed5ed67255
+### Commit [f7d3b13](https://github.com/GeorgeSapkin/hyperstickler/commit/f7d3b1394ad3085c47f704150635793791108ec7)
+
+- :x: Commit subject must not start with whitespace
+- :x: Commit subject must start with `<package name or prefix>: `
+
+### Commit [ff3950e](https://github.com/GeorgeSapkin/hyperstickler/commit/ff3950ea1e250508d6a9932ecdd79ec506966b0c)
 
 - :x: Author email must not be a GitHub noreply email
 
@@ -213,7 +227,7 @@ Issues marked with an :x: are failing checks.
 
 </details>
 
-For more details, see the [full job log](https://github.com/GeorgeSapkin/hyperstickler/actions/runs/20320845251/job/58375970465?pr=1#step:4:1).
+For more details, see the [full job log](https://github.com/GeorgeSapkin/hyperstickler/actions/runs/20410211299/job/58645848030?pr=1#step:2:1).
 
 <sub>Something broken? Consider [providing feedback](https://github.com/georgesapkin/hyperstickler/issues).</sub>
 
