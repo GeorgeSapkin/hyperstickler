@@ -20,23 +20,32 @@ inputs:
     default: 'false'
     required: false
   feedback_url:
-    description: 'URL to provide feedback to. If empty, no feedback text will be added to either console log or comment.'
+    description: |
+      URL to provide feedback to. If empty, no feedback text will be added to
+      either console log or comment.'
     default: 'https://github.com/georgesapkin/hyperstickler/issues'
     required: false
   guideline_url:
     description: 'Submission guideline URL used in PR comments'
     default: 'https://www.kernel.org/doc/html/latest/process/submitting-patches.html'
     required: false
+  job_step:
+    description: |
+      Job step number that full log link in comment should point to. Otherwise
+      it will point to the job itself. Requires post_comment to be true.'
+    required: false
   max_body_line_len:
     description: 'Max body line length. Longer lines result in a warning.'
     default: '75'
     required: false
   max_subject_len_hard:
-    description: 'Hard max subject line length limit. Longer subjects fails check.'
+    description: |
+      Hard max subject line length limit. Longer subjects fails check.
     default: '60'
     required: false
   max_subject_len_soft:
-    description: 'Soft max subject line length limit. Longer subjects result in a warning.'
+    description: |
+      Soft max subject line length limit. Longer subjects result in a warning.
     default: '50'
     required: false
   post_comment:
@@ -44,7 +53,9 @@ inputs:
     default: 'false'
     required: false
   warn_on_no_modify:
-    description: 'Warn when PR edits by maintainers are not allowed. Requires post_comment to be true.'
+    description: |
+      Warn when PR edits by maintainers are not allowed. Requires post_comment
+      to be true.'
     default: 'false'
     required: false
 
@@ -82,17 +93,21 @@ runs:
         FEEDBACK_URL: ${{ inputs.feedback_url }}
         GUIDELINE_URL: ${{ inputs.guideline_url }}
         JOB_ID: ${{ job.check_run_id }}
+        JOB_STEP: ${{ inputs.job_step }}
         SUMMARY: ${{ steps.formalities.outputs.content }}
         WARN_ON_NO_MODIFY: ${{ inputs.warn_on_no_modify }}
       with:
         script: |
-          const processFormalities = require(`${process.env.ACTION_PATH}/src/process_formalities.js`)
+          const processFormalities = require(
+            `${process.env.ACTION_PATH}/src/process_formalities.js`
+          );
           await processFormalities({
             github,
             context,
             feedbackUrl: process.env.FEEDBACK_URL,
             guidelineUrl: process.env.GUIDELINE_URL,
             jobId: process.env.JOB_ID,
+            jobStep: process.env.JOB_STEP,
             summary: process.env.SUMMARY,
             warnOnNoModify: process.env.WARN_ON_NO_MODIFY,
           });

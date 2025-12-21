@@ -62,6 +62,11 @@ All inputs are optional.
 - Submission guideline URL used in PR comments.
 - Default: https://www.kernel.org/doc/html/latest/process/submitting-patches.html
 
+### `job_step`
+
+- Job step number that full log link in comment should point to. Otherwise it
+  will point to the job itself. Requires `post_comment` to be `true`.
+
 ### `max_body_line_len`
 
 - Max body line length. Longer lines result in a warning.

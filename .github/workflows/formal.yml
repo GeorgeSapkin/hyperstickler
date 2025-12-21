@@ -16,5 +16,6 @@ jobs:
         uses: georgesapkin/hyperstickler@main
         with:
           check_signoff: true
+          job_step: 2
           post_comment: true
           warn_on_no_modify: true

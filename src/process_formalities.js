@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 const BOT_LOGIN = "github-actions";
-const STEP_ANCHOR = "step:4:1";
 
 const GET_COMMENTS_QUERY = `query($owner: String!, $repo: String!, $issueNumber: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -86,25 +85,36 @@ async function hideOldSummaries({ github, owner, repo, issueNumber }) {
   }
 }
 
-function getJobUrl({ context, jobId }) {
-  return `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/job/${jobId}?pr=${context.issue.number}#${STEP_ANCHOR}`;
+function getStepAnchor({ jobStep }) {
+  if (jobStep == null || jobStep.length === 0) {
+    return '';
+  }
+
+  return `#step:${jobStep}:1`;
 }
 
-function getSummaryMessage({ context, guidelineUrl, jobId, summary }) {
+function getJobUrl({ context, jobId, jobStep }) {
+  const anchor = getStepAnchor({ jobStep });
+  return `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/job/${jobId}?pr=${context.issue.number}${anchor}`;
+}
+
+function getSummaryMessage({
+  context, guidelineUrl, jobId, jobStep, summary
+}) {
   return `
 ${getSummaryHeader({ guidelineUrl })}
 ${summary}
 ${SUMMARY_FOOTER}
-For more details, see the [full job log](${getJobUrl({ context, jobId })}).
+For more details, see the [full job log](${getJobUrl({ context, jobId, jobStep })}).
 `;
 }
 
 function getCommentMessage({
-  context, feedbackUrl, guidelineUrl, jobId, noModify, summary
+  context, feedbackUrl, guidelineUrl, jobId, jobStep, noModify, summary
 }) {
-  return `
-${summary.length > 0
-  ? getSummaryMessage({ context, guidelineUrl, jobId, summary })
+  return `${
+summary.length > 0
+  ? getSummaryMessage({ context, guidelineUrl, jobId, jobStep, summary })
   : ''
 }
 ${noModify ? NO_MODIFY : ''}
@@ -119,6 +129,7 @@ async function processFormalities({
   github,
   guidelineUrl,
   jobId,
+  jobStep,
   summary,
   warnOnNoModify,
 }) {
@@ -137,7 +148,7 @@ async function processFormalities({
 
   console.log("Posting new summary comment");
   const body = getCommentMessage({
-    context, feedbackUrl, guidelineUrl, jobId, noModify, summary
+    context, feedbackUrl, guidelineUrl, jobId, jobStep, noModify, summary
   });
   return github.rest.issues.createComment({
     issue_number: issueNumber,
