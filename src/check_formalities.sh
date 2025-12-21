@@ -15,8 +15,10 @@ EXCLUDE_DEPENDABOT=${EXCLUDE_DEPENDABOT:-false}
 EXCLUDE_WEBLATE=${EXCLUDE_WEBLATE:-false}
 SHOW_LEGEND=${SHOW_LEGEND:-true}
 
+FEEDBACK_URL=${FEEDBACK_URL:-}
+
 if [ "$MAX_SUBJECT_LEN_SOFT" -gt "$MAX_SUBJECT_LEN_HARD" ]; then
-	echo "MAX_SUBJECT_LEN_SOFT cannot be larger than MAX_SUBJECT_LEN_HARD, now $MAX_SUBJECT_LEN_SOFT and $MAX_SUBJECT_LEN_HARD" >&2
+	echo "MAX_SUBJECT_LEN_SOFT ($MAX_SUBJECT_LEN_SOFT) cannot be larger than MAX_SUBJECT_LEN_HARD ($MAX_SUBJECT_LEN_HARD)" >&2
 	exit 1
 fi
 
@@ -26,8 +28,6 @@ INDENT_TERM='       '
 DEPENDABOT_EMAIL='dependabot[bot]@users.noreply.github.com'
 GITHUB_NOREPLY_EMAIL='@users.noreply.github.com'
 WEBLATE_EMAIL='hosted@weblate.org'
-
-FEEDBACK_URL=${FEEDBACK_URL:-}
 
 EMOJI_WARN=':large_orange_diamond:'
 EMOJI_FAIL=':x:'
@@ -200,6 +200,7 @@ exclude_weblate()      { [ "$EXCLUDE_WEBLATE" = 'true' ]; }
 has_base()             { [ -n "$BASE_BRANCH" ]; }
 # shellcheck disable=SC2329
 has_no_prefix()        { [[ ! "$1" =~ $PREFIX_REGEX ]]; }
+is_fail()              { [ "$1" = "$RES_FAIL" ]; }
 # shellcheck disable=SC2329
 is_first_word_caps()   { [[ "$1" =~ ${PREFIX_REGEX}[A-Z] ]]; }
 # shellcheck disable=SC2329
@@ -215,6 +216,7 @@ is_not_alias()         { [[ ! "$1" =~ [^[:space:]] ]]; }
 # shellcheck disable=SC2329
 is_not_name()          { [[ ! "$1" =~ [^[:space:]]+[[:space:]][^[:space:]]+ ]]; }
 is_revert()            { [[ "$1" == "Revert "* ]]; }
+is_warn()              { [ "$1" = "$RES_WARN" ]; }
 # shellcheck disable=SC2329
 omits()                { [[ "$1" != *"$2"* ]]; }
 show_legend()          { [ "$SHOW_LEGEND" = 'true' ]; }
@@ -266,14 +268,14 @@ check_exceptions() {
 	echo
 }
 
-have_reasons()    { [ "${#SKIP_REASONS[@]}" -gt 0 ]; }
-is_reason()       { have_reasons && [ "${SKIP_REASONS[-1]}" = "$1" ]; }
-peak_reason()     { have_reasons && echo "${SKIP_REASONS[-1]}"; }
-pop_reason()      { unset "SKIP_REASONS[-1]"; }
-pop_if_reason()   { is_reason "$1" && pop_reason; }
-push_reason()     { SKIP_REASONS+=("$1"); }
+have_skip_reasons()    { [ "${#SKIP_REASONS[@]}" -gt 0 ]; }
+is_skip_reason()       { have_skip_reasons && [ "${SKIP_REASONS[-1]}" = "$1" ]; }
+peek_skip_reason()     { have_skip_reasons && echo "${SKIP_REASONS[-1]}"; }
+pop_skip_reason()      { unset "SKIP_REASONS[-1]"; }
+pop_if_skip_reason()   { is_skip_reason "$1" && pop_skip_reason; }
+push_skip_reason()     { SKIP_REASONS+=("$1"); }
 
-reset_reasons() {
+reset_skip_reasons() {
 	local author_email="$1"
 	local exception
 
@@ -281,7 +283,7 @@ reset_reasons() {
 	exception="$(is_exception "$author_email")"
 	# shellcheck disable=SC2181
 	if [ $? = 0 ]; then
-		push_reason "authored by $exception"
+		push_skip_reason "authored by $exception"
 	fi
 }
 
@@ -374,14 +376,14 @@ check() {
 		output_skip "$rule" "$skip_reason"
 		return "$RES_SKIP"
 
-	elif [ "$always" = 0 ] && have_reasons; then
-		skip_reason="$(peak_reason)"
+	elif [ "$always" = 0 ] && have_skip_reasons; then
+		skip_reason="$(peek_skip_reason)"
 		output_skip "$rule" "$skip_reason"
 		return "$RES_SKIP"
 
 	elif [ -n "$fail_fn" ] && "$fail_fn" "${fail_args[@]}"; then
 		output_fail "$rule" "$fail_actual" "$fail_expected"
-		[ -n "$fail_set_skip" ] && push_reason "$fail_set_skip"
+		[ -n "$fail_set_skip" ] && push_skip_reason "$fail_set_skip"
 		return "$RES_FAIL"
 
 	elif [ -n "$warn_fn" ] && "$warn_fn" "${warn_args[@]}"; then
@@ -418,7 +420,7 @@ check_email() {
 check_subject() {
 	local subject="$1"
 
-	is_revert "$subject" && push_reason 'revert commit'
+	is_revert "$subject" && push_skip_reason 'revert commit'
 
 	check \
 		-rule 'Commit subject must not start with whitespace' \
@@ -435,7 +437,7 @@ check_subject() {
 		-rule 'Commit subject must start with a lower-case word after the prefix' \
 		-fail-if is_first_word_caps "$subject"
 
-	pop_if_reason "$reason"
+	pop_if_skip_reason "$reason"
 
 	check \
 		-rule 'Commit subject must not end with a period' \
@@ -451,7 +453,7 @@ check_subject() {
 		-warn-actual "subject is ${#subject} characters long"
 
 	local res=$?
-	if [ "$res" = "$RES_WARN" ] || [ "$res" = "$RES_FAIL" ]; then
+	if is_warn "$res" || is_fail "$res"; then
 		output_split_fail_ex "$MAX_SUBJECT_LEN_SOFT" "$MAX_SUBJECT_LEN_HARD" "$subject"
 	fi
 }
@@ -479,7 +481,7 @@ check_body() {
 		-fail-if is_github_noreply "$body" \
 		-fail-expected 'a real email address'
 
-	pop_if_reason "$reason"
+	pop_if_skip_reason "$reason"
 
 	# Never skip this check based on other checks
 	check \
@@ -489,7 +491,7 @@ check_body() {
 		-fail-set-skip 'missing commit message'
 
 	local msg="Commit message lines should be <= $MAX_BODY_LINE_LEN characters long"
-	if ! have_reasons; then
+	if ! have_skip_reasons; then
 		local body_line_too_long=0
 		local line_num=0
 		while IFS= read -r line; do
@@ -508,8 +510,8 @@ check_body() {
 		output_skip "$msg" "${SKIP_REASONS[-1]}"
 	fi
 
-	reset_reasons
-	has_base || push_reason 'no base branch specified'
+	reset_skip_reasons
+	has_base || push_skip_reason 'no base branch specified'
 
 	check \
 		-rule 'Commit to stable branch should be marked as cherry-picked' \
@@ -574,13 +576,13 @@ main() {
 				continue
 			fi
 
-			reset_reasons "$author_email"
+			reset_skip_reasons "$author_email"
 			check_name 'Author' "$author_name"
 			check_email 'Author' "$author_email"
 			check_name 'Commit(ter)' "$committer_name"
 			check_email 'Commit(ter)' "$committer_email"
 			check_subject "$subject"
-			reset_reasons "$author_email"
+			reset_skip_reasons "$author_email"
 			check_body "$body" "$sob"
 
 			echo

@@ -554,7 +554,9 @@ run_worker() {
 	git init -b "$BASE_BRANCH" >/dev/null
 	git config user.name 'Test User'
 	git config user.email 'test.user@example.com'
-	commit 'Initial Committer' 'initial@example.com' 'initial: commit' 'This is the first main commit.' >/dev/null
+	commit \
+		'Initial Committer' 'initial@example.com'\
+		'initial: commit' 'This is the first main commit.' >/dev/null
 	git switch -C "$HEAD_BRANCH" >/dev/null 2>&1
 
 	export CHECK_SIGNOFF="${ENV_CHECK_SIGNOFF[$idx]}"
