@@ -11,6 +11,10 @@ inputs:
     description: 'Check if pull request comes from a feature branch'
     default: 'true'
     required: false
+  check_signature:
+    description: 'Validate commit signatures. Invalid signatures fail, missing are ignored.'
+    default: 'false'
+    required: false
   check_signoff:
     description: 'Check if Signed-off-by exists and matches author'
     default: 'false'
@@ -80,6 +84,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         BASE_BRANCH: origin/${{ github.base_ref }}
         CHECK_BRANCH: ${{ inputs.check_branch }}
+        CHECK_SIGNATURE: ${{ inputs.check_signature }}
         CHECK_SIGNOFF: ${{ inputs.check_signoff }}
         EXCLUDE_DEPENDABOT: ${{ inputs.exclude_dependabot }}
         EXCLUDE_WEBLATE: ${{ inputs.exclude_weblate }}
