@@ -6,6 +6,7 @@
 
 # Default exports
 export BASE_BRANCH='main'
+export CHECK_BRANCH='true'
 export CHECK_SIGNOFF='true'
 export HEAD_BRANCH='feature-branch'
 export PR_NUMBER='123'
@@ -30,6 +31,7 @@ INJECTIONS=()
 MERGES=()
 SUBJECTS=()
 
+ENV_CHECK_BRANCH=()
 ENV_CHECK_SIGNOFF=()
 ENV_EXCLUDE_DEPENDABOT=()
 ENV_EXCLUDE_WEBLATE=()
@@ -37,7 +39,7 @@ ENV_HEAD_BRANCH=()
 
 define() {
 	local name expected author email subject body merge exists
-	local check_signoff exclude_dependabot exclude_weblate head_branch
+	local check_branch check_signoff exclude_dependabot exclude_weblate head_branch
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -58,6 +60,7 @@ define() {
 				fi
 				;;
 
+			-check-branch)  check_branch="$2";       shift ;;
 			-check-signoff) check_signoff="$2";      shift ;;
 			-no-dependabot) exclude_dependabot="$2"; shift ;;
 			-no-weblate)    exclude_weblate="$2";    shift ;;
@@ -78,6 +81,7 @@ define() {
 	MERGES+=("${merge:-0}")
 	SUBJECTS+=("$subject")
 
+	ENV_CHECK_BRANCH+=("${check_branch:-${CHECK_BRANCH:-}}")
 	ENV_CHECK_SIGNOFF+=("${check_signoff:-${CHECK_SIGNOFF:-}}")
 	ENV_EXCLUDE_DEPENDABOT+=("${exclude_dependabot:-${EXCLUDE_DEPENDABOT:-}}")
 	ENV_EXCLUDE_WEBLATE+=("${exclude_weblate:-${EXCLUDE_WEBLATE:-}}")
@@ -395,6 +399,49 @@ define \
 		Signed-off-by: Good Author <good.author@example.com>
 	EOF
 
+
+
+define \
+	-test          'Feature branch check disabled' \
+	-expected      '3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: add new feature' \
+	-check-branch  'false' \
+	-body          <<-'EOF'
+		This commit follows all the rules, check is disabled.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Feature branch check enabled, PR from main fails' \
+	-expected      '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: add new feature' \
+	-check-branch  'true' \
+	-head-branch   'main' \
+	-body          <<-'EOF'
+		This commit is from main branch and should fail.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Feature branch check enabled, PR from feature branch passes' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: add new feature' \
+	-check-branch  'true' \
+	-head-branch   'feature/new-thing' \
+	-body          <<-'EOF'
+		This commit is from a feature branch and should pass.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
 cleanup() {
 	if [ -d "$REPO_DIR" ]; then
 		[ -z "$PARALLEL_WORKER" ] && echo "Cleaning up temporary directory '$REPO_DIR'"
@@ -571,6 +618,7 @@ run_worker() {
 		'initial: commit' 'This is the first main commit.' >/dev/null
 	git switch -C "$HEAD_BRANCH" >/dev/null 2>&1
 
+	export CHECK_BRANCH="${ENV_CHECK_BRANCH[$idx]}"
 	export CHECK_SIGNOFF="${ENV_CHECK_SIGNOFF[$idx]}"
 	export EXCLUDE_DEPENDABOT="${ENV_EXCLUDE_DEPENDABOT[$idx]}"
 	export EXCLUDE_WEBLATE="${ENV_EXCLUDE_WEBLATE[$idx]}"

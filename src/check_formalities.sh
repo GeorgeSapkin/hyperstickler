@@ -10,6 +10,7 @@ MAX_SUBJECT_LEN_HARD=${MAX_SUBJECT_LEN_HARD:-60}
 MAX_SUBJECT_LEN_SOFT=${MAX_SUBJECT_LEN_SOFT:-50}
 MAX_BODY_LINE_LEN=${MAX_BODY_LINE_LEN:-75}
 
+CHECK_BRANCH=${CHECK_BRANCH:-true}
 CHECK_SIGNOFF=${CHECK_SIGNOFF:-false}
 EXCLUDE_DEPENDABOT=${EXCLUDE_DEPENDABOT:-false}
 EXCLUDE_WEBLATE=${EXCLUDE_WEBLATE:-false}
@@ -192,7 +193,11 @@ output_split_fail_ex() {
 }
 
 # shellcheck disable=SC2329
+check_branch()         { [ "$CHECK_BRANCH" = 'true' ]; }
+# shellcheck disable=SC2329
 check_signoff()        { [ "$CHECK_SIGNOFF" = 'true' ]; }
+# shellcheck disable=SC2329
+do_not_check_branch()  { ! check_branch; }
 # shellcheck disable=SC2329
 do_not_check_signoff() { ! check_signoff; }
 # shellcheck disable=SC2329
@@ -548,6 +553,8 @@ main() {
 	info "Checking PR #$PR_NUMBER"
 	check \
 		-rule 'Pull request must come from a feature branch' \
+		-skip-if do_not_check_branch \
+		-skip-reason 'disabled by configuration' \
 		-pass-reason "\`$HEAD_BRANCH\` branch" \
 		-fail-if is_main_branch "$HEAD_BRANCH" \
 		-fail-actual "\`$HEAD_BRANCH\` branch"
