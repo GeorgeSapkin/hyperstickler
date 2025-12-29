@@ -36,6 +36,11 @@ Commit & PR formalities checker based on the OpenWrt [submission guidelines](
 
 All inputs are optional.
 
+### `check_branch`
+
+- Check if pull request comes from a feature branch.
+- Default: `true`.
+
 ### `check_signoff`
 
 - Check if `Signed-off-by` exists and matches author.
