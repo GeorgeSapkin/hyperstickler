@@ -67,7 +67,7 @@ _R=$'\xfa'
 GIT_HEADER='%C(yellow)commit %H%n%C(reset)Author: %an <%ae>%nCommit: %cn <%ce>%n%n%w(0,4,4)%B'
 # GH actions sometimes return a mix of body %b and raw body %B when body is
 # requested, so always use raw body
-GIT_VARS="%H${_F}%aN${_F}%aE${_F}%cN${_F}%cE${_F}%s${_F}%B${_F}Signed-off-by: %aN <%aE>${_F}%P"
+GIT_VARS="%H${_F}%aN${_F}%aE${_F}%cN${_F}%cE${_F}%s${_F}%B${_F}Signed-off-by: %aN <%aE>${_F}%P${_F}%G?"
 GIT_FORMAT="${_F}${GIT_HEADER}${_F}${GIT_VARS}${_R}"
 
 ACTION_PATH=${ACTION_PATH:+"$ACTION_PATH/src"}
@@ -230,6 +230,12 @@ show_legend()          { [ "$SHOW_LEGEND" = 'true' ]; }
 show_feedback()        { [ -n "$FEEDBACK_URL" ]; }
 # shellcheck disable=SC2329
 starts_with_space()    { [[ "$1" =~ ^[[:space:]] ]]; }
+# shellcheck disable=SC2329
+is_bad_sign()          { [[ "$1" =~ ^[BRE]$ ]]; }
+# shellcheck disable=SC2329
+is_warn_sign()         { [[ "$1" =~ ^[UXY]$ ]]; }
+# shellcheck disable=SC2329
+is_unsigned()          { [ "$1" = 'N' ]; }
 
 # shellcheck disable=SC2329
 is_body_empty()        {
@@ -542,6 +548,20 @@ check_body() {
 		-warn-actual "a stable branch (\`${BASE_BRANCH#origin/}\`)"
 }
 
+check_signature() {
+	local status="$1"
+
+	check \
+		-rule 'Signature must be valid' \
+		-skip-if is_unsigned "$status" \
+		-skip-reason 'No signature' \
+		-fail-if is_bad_sign "$status" \
+		-fail-actual "Bad/Revoked/Error signature (Status: $status)" \
+		-warn-if is_warn_sign "$status" \
+		-warn-actual "Expired/Unknown signature (Status: $status)" \
+		-pass-reason 'Good signature'
+}
+
 main() {
 	# Initialize GitHub actions output
 	output 'content<<EOF'
@@ -581,7 +601,8 @@ main() {
 			subject \
 			body \
 			sob \
-			parent_hashes
+			parent_hashes \
+			sign_status
 		do
 			HEADER_SET=0
 			COMMIT="$commit"
@@ -607,6 +628,8 @@ main() {
 			check_subject "$subject"
 			reset_skip_reasons "$author_email"
 			check_body "$body" "$sob"
+			reset_skip_reasons "$author_email"
+			check_signature "$sign_status"
 
 			echo
 		done
