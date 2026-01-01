@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2025, George Sapkin
+# Copyright (C) 2025-2026, George Sapkin
 #
 # SPDX-License-Identifier: GPL-2.0-only
 
@@ -37,9 +37,9 @@ PREFIX_REGEX='^([0-9A-Za-z,+/._-]+: )+'
 
 declare -A ARITY
 
-RES_FAIL=3
-RES_SKIP=1
+RES_FAIL=1
 RES_WARN=2
+RES_SKIP=3
 
 FAIL=0
 
@@ -593,7 +593,7 @@ main() {
 				-always \
 				-fail-if is_merge "$parent_hashes"
 
-			if [ $? = "$RES_FAIL" ]; then
+			if is_fail $?; then
 				# No need to check anything else, since this is a merge commit
 				echo
 				continue
