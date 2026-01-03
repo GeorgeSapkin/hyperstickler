@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2025, George Sapkin
+# Copyright (C) 2025-2026, George Sapkin
 #
 # SPDX-License-Identifier: GPL-2.0-only
 
@@ -108,6 +108,18 @@ define \
 	-subject       'kernel: 6.18: add new feature' \
 	-body          <<-'EOF'
 		This commit follows all the rules.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Subject: double prefix and capitalized first word' \
+	-expected      '0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'kernel: 6.18: Add new feature' \
+	-body          <<-'EOF'
+		This commit should fail.
 
 		Signed-off-by: Good Author <good.author@example.com>
 	EOF
