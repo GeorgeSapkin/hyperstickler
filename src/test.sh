@@ -693,16 +693,25 @@ main() {
 	local self
 	self=$(readlink -f "$0")
 
+	# Sort descriptions and store sorted indices that are used both to run and
+	# display results in lexicographical order
+	local sorted_indices=()
+	readarray -t sorted_indices < <(
+		for idx in "${!DESCRIPTIONS[@]}"; do
+			printf '%s\t%s\n' "$idx" "${DESCRIPTIONS[$idx]}"
+		done | sort -t$'\t' -k2f | cut -f1
+	)
+
 	# Run tests in parallel in the background
 	(
-		seq 0 $((${#DESCRIPTIONS[@]} - 1)) |
-		xargs -P "$MAX_JOBS" -I {} "$self" ${VERBOSE:+--verbose} --idx {} --base "$REPO_DIR" || true; \
+		printf '%s\n' "${sorted_indices[@]}" |
+		xargs -P "$MAX_JOBS" -I {} "$self" ${VERBOSE:+--verbose} --idx {} --base "$REPO_DIR" || true
 		touch "$REPO_DIR/.done"
 	) >/dev/null 2>&1 &
 	local pid=$!
 
 	# Display results in order as they become available
-	for idx in "${!DESCRIPTIONS[@]}"; do
+	for idx in "${sorted_indices[@]}"; do
 		local log_file="$REPO_DIR/$idx.log"
 		local wait_count=0
 		while [ ! -f "$log_file" ]; do
