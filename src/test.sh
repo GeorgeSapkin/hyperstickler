@@ -737,7 +737,7 @@ main() {
 	echo $'\nTest suite finished'
 	echo "Summary: $pass_count/$test_count tests passed"
 
-	[ "$pass_count" != "$test_count" ] \
+	[ "$pass_count" -ne "$test_count" ] \
 		&& exit 1 \
 		|| exit 0
 }
