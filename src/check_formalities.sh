@@ -25,6 +25,11 @@ if [ "$MAX_SUBJECT_LEN_SOFT" -gt "$MAX_SUBJECT_LEN_HARD" ]; then
 	exit 1
 fi
 
+if (( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] < 403 )); then
+	echo "Bash version 4.3+ required (found ${BASH_VERSION})" >&2
+	exit 1
+fi
+
 INDENT_MD='    '
 INDENT_TERM='       '
 
