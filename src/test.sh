@@ -454,6 +454,18 @@ define \
 		Signed-off-by: Good Author <good.author@example.com>
 	EOF
 
+define \
+	-test          'LaTeX special chars' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: stress test latex escaping' \
+	-body          <<-'EOF'
+		This line is intentionally made very long to trigger the body length check warning or error so we can test escaping of _ & % $ # { } \ ^ ~
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
 cleanup() {
 	if [ -d "$REPO_DIR" ]; then
 		[ -z "$PARALLEL_WORKER" ] && echo "Cleaning up temporary directory '$REPO_DIR'"
