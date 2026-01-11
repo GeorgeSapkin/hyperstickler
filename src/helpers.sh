@@ -58,3 +58,44 @@ status_fail() {
 status_skip() {
 	status 39 skip "$1"
 }
+
+# Escapes special characters in the given text to be safe for inclusion in LaTeX
+# output.
+escape_latex() {
+	local text="$1"
+
+	# Placeholders for characters that need special handling
+	local bs='LATEXESCAPEBACKSLASH'
+	local crt='LATEXESCAPECARET'
+	local rcb='LATEXESCAPERCB'
+	local tld='LATEXESCAPETILDE'
+
+	# Replacement strings (stored in variables to avoid bash parsing issues with
+	# } in replacement strings)
+	local r_bs='\textbackslash{}'
+	local r_crt='\textasciicircum{}'
+	local r_rcb='\}'
+	local r_tld='\textasciitilde{}'
+
+	# First, replace characters that need placeholders
+	text="${text//\\/$bs}"
+	text="${text//^/$crt}"
+	text="${text//\}/$rcb}"
+	text="${text//\~/$tld}"
+
+	# Escape simple characters
+	text="${text//_/\\_}"
+	text="${text//\$/\\$}"
+	text="${text//&/\\&}"
+	text="${text//%/\\%}"
+	text="${text//#/\\#}"
+	text="${text//\{/\\{}"
+
+	# Replace placeholders with actual LaTeX commands
+	text="${text//$bs/$r_bs}"
+	text="${text//$crt/$r_crt}"
+	text="${text//$rcb/$r_rcb}"
+	text="${text//$tld/$r_tld}"
+
+	echo "$text"
+}

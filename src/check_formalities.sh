@@ -188,15 +188,22 @@ output_skip() {
 output_split_fail() {
 	split_fail "$1" "$2" "${INDENT_TERM}"
 	[ -f "$GITHUB_OUTPUT" ] || return
+	local part1 part2
+	part1="$(escape_latex "${2:0:$1}")"
+	part2="$(escape_latex "${2:$1}")"
 	printf "${INDENT_MD}\$\\\textsf{%s\\color{red}{%s}}\$\n" \
-		"${2:0:$1}" "${2:$1}" >> "$GITHUB_OUTPUT"
+		"$part1" "$part2" >> "$GITHUB_OUTPUT"
 }
 
 output_split_fail_ex() {
 	split_fail_ex "$1" "$2" "$3" "${INDENT_TERM}"
 	[ -f "$GITHUB_OUTPUT" ] || return
+	local part1 part2 part3
+	part1="$(escape_latex "${3:0:$1}")"
+	part2="$(escape_latex "${3:$1:$(($2 - $1))}")"
+	part3="$(escape_latex "${3:$2}")"
 	printf "${INDENT_MD}\$\\\textsf{%s\\color{yellow}{%s}\\color{red}{%s}}\$\n" \
-		"${3:0:$1}" "${3:$1:$(($2 - $1))}" "${3:$2}" >> "$GITHUB_OUTPUT"
+		"$part1" "$part2" "$part3" >> "$GITHUB_OUTPUT"
 }
 
 # shellcheck disable=SC2329
