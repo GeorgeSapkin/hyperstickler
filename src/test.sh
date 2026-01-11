@@ -27,6 +27,7 @@ BODIES=()
 DESCRIPTIONS=()
 EMAILS=()
 EXPECTED_RESULTS=()
+CONTENTS=()
 INJECTIONS=()
 MERGES=()
 SUBJECTS=()
@@ -39,8 +40,8 @@ ENV_EXCLUDE_WEBLATE=()
 ENV_HEAD_BRANCH=()
 
 define() {
-	local name expected author email subject body merge exists sign_key
-	local check_branch check_signoff exclude_dependabot exclude_weblate head_branch
+	local name expected author email subject body merge exists sign_key content
+	local check_branch check_signoff check_trailing_newline check_trailing_whitespace exclude_dependabot exclude_weblate head_branch
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -50,8 +51,10 @@ define() {
 			-exists)   exists="$2";    shift ;;
 			-merge)    merge="$2";     shift ;;
 			-sign-key) sign_key="$2";  shift ;;
+			-sign-key) sign_key="$2";  shift ;;
 			-subject)  subject="$2";   shift ;;
 			-test)     name="$2";      shift ;;
+			-content)  content="$2";   shift ;;
 
 			-body)
 				if [ -n "$2" ] && [[ "$2" != -* ]]; then
@@ -64,6 +67,8 @@ define() {
 
 			-check-branch)  check_branch="$2";       shift ;;
 			-check-signoff) check_signoff="$2";      shift ;;
+			-check-trailing-newline)    check_trailing_newline="$2";    shift ;;
+			-check-trailing-whitespace) check_trailing_whitespace="$2"; shift ;;
 			-no-dependabot) exclude_dependabot="$2"; shift ;;
 			-no-weblate)    exclude_weblate="$2";    shift ;;
 			-head-branch)   head_branch="$2";        shift ;;
@@ -76,6 +81,7 @@ define() {
 
 	AUTHORS+=("$author")
 	BODIES+=("$body")
+	CONTENTS+=("${content:-}")
 	DESCRIPTIONS+=("$name")
 	EMAILS+=("$email")
 	EXPECTED_RESULTS+=("$expected")
@@ -86,6 +92,8 @@ define() {
 
 	ENV_CHECK_BRANCH+=("${check_branch:-${CHECK_BRANCH:-}}")
 	ENV_CHECK_SIGNOFF+=("${check_signoff:-${CHECK_SIGNOFF:-}}")
+	ENV_CHECK_TRAILING_NEWLINE+=("${check_trailing_newline:-${CHECK_TRAILING_NEWLINE:-}}")
+	ENV_CHECK_TRAILING_WHITESPACE+=("${check_trailing_whitespace:-${CHECK_TRAILING_WHITESPACE:-}}")
 	ENV_EXCLUDE_DEPENDABOT+=("${exclude_dependabot:-${EXCLUDE_DEPENDABOT:-}}")
 	ENV_EXCLUDE_WEBLATE+=("${exclude_weblate:-${EXCLUDE_WEBLATE:-}}")
 	ENV_HEAD_BRANCH+=("${head_branch:-${HEAD_BRANCH:-}}")
@@ -93,7 +101,7 @@ define() {
 
 define \
 	-test          'Good commit' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: add new feature' \
@@ -105,7 +113,7 @@ define \
 
 define \
 	-test          'Subject: double prefix' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'kernel: 6.18: add new feature' \
@@ -117,7 +125,7 @@ define \
 
 define \
 	-test          'Subject: double prefix and capitalized first word' \
-	-expected      '0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'kernel: 6.18: Add new feature' \
@@ -129,7 +137,7 @@ define \
 
 define \
 	-test          'Bad check parsing test' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: add new feature' \
@@ -145,7 +153,7 @@ define \
 
 define \
 	-test          'Revert commit' \
-	-expected      '0 0 0 0 0 0 3 3 3 3 3 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 3 3 3 3 3 0 0 0 0 3 3 0 0' \
 	-author        'Revert Author' \
 	-email         'revert.author@example.com' \
 	-subject       "Revert 'package: add new feature'" \
@@ -158,7 +166,7 @@ define \
 # shellcheck disable=SC2016
 define \
 	-test          'Body: malicious body shell injection' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: malicious body shell injection' \
@@ -170,7 +178,7 @@ define \
 
 define \
 	-test          'Body: malicious body check injection' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: malicious body check injection' \
@@ -182,7 +190,7 @@ define \
 
 define \
 	-test          'Body: missing Signed-off-by but check disabled' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: fail on missing signed-off-by' \
@@ -191,7 +199,7 @@ define \
 
 define \
 	-test          'Body: mismatched Signed-off-by but check disabled' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 3 3 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: fail on mismatched signed-off-by' \
@@ -204,7 +212,7 @@ define \
 
 define \
 	-test          'Bad author email (GitHub noreply)' \
-	-expected      '0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 3 3' \
+	-expected      '0 0 0 1 0 1 0 0 0 0 0 0 1 0 0 3 3 0 0' \
 	-author        'Bad Email' \
 	-email         'bad.email@users.noreply.github.com' \
 	-subject       'test: fail on bad author email' \
@@ -216,7 +224,7 @@ define \
 
 define \
 	-test          'Subject: starts with whitespace' \
-	-expected      '0 0 0 0 0 0 1 1 3 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 1 1 3 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       ' package: subject starts with whitespace' \
@@ -228,7 +236,7 @@ define \
 
 define \
 	-test          'Subject: no prefix' \
-	-expected      '0 0 0 0 0 0 0 1 3 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 1 3 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'This subject has no prefix' \
@@ -240,7 +248,7 @@ define \
 
 define \
 	-test          'Subject: capitalized first word' \
-	-expected      '0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: Capitalized first word' \
@@ -252,7 +260,7 @@ define \
 
 define \
 	-test          'Subject: ends with a period' \
-	-expected      '0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: subject ends with a period.' \
@@ -264,7 +272,7 @@ define \
 
 define \
 	-test          'Subject: too long (hard limit)' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: this subject is way too long and should fail the hard limit check of 60 chars' \
@@ -276,7 +284,7 @@ define \
 
 define \
 	-test          'Body: missing Signed-off-by' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: fail on missing signed-off-by' \
@@ -284,7 +292,7 @@ define \
 
 define \
 	-test          'Body: mismatched Signed-off-by' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 1 3 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: fail on mismatched signed-off-by' \
@@ -296,7 +304,7 @@ define \
 
 define \
 	-test          'Body: empty' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 1 3 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 1 3 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: fail on empty body' \
@@ -304,7 +312,7 @@ define \
 
 define \
 	-test          'Author name is a single word' \
-	-expected      '0 0 2 0 2 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 2 0 2 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Nickname' \
 	-email         'nickname@example.com' \
 	-subject       'test: warn on single-word author name' \
@@ -316,7 +324,7 @@ define \
 
 define \
 	-test          'Subject: too long (soft limit)' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: this subject is long and should trigger a warning' \
@@ -328,7 +336,7 @@ define \
 
 define \
 	-test          'Body: line too long' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: warn on long body line' \
@@ -340,7 +348,7 @@ define \
 
 define \
 	-test          'Body: line almost too long' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'test: pass on not too long body line' \
@@ -352,7 +360,7 @@ define \
 
 define \
 	-test          'Exception: dependabot' \
-	-expected      '0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3 3' \
+	-expected      '0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3 3 3 3' \
 	-author        'dependabot[bot]' \
 	-email         'dependabot[bot]@users.noreply.github.com' \
 	-subject       'CI: bump something from 1 to 2' \
@@ -363,7 +371,7 @@ define \
 
 define \
 	-test          'No exception: dependabot' \
-	-expected      '0 0 2 1 2 1 0 0 0 0 0 1 3 0 0 3 3' \
+	-expected      '0 0 2 1 2 1 0 0 0 0 0 1 3 0 0 3 3 0 0' \
 	-author        'dependabot[bot]' \
 	-email         'dependabot[bot]@users.noreply.github.com' \
 	-subject       'CI: bump something from 1 to 2' \
@@ -373,7 +381,7 @@ define \
 
 define \
 	-test          'Exception: weblate' \
-	-expected      '0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3 3' \
+	-expected      '0 0 3 3 3 3 3 3 3 3 3 3 3 0 3 3 3 3 3' \
 	-author        'Hosted Weblate' \
 	-email         'hosted@weblate.org' \
 	-subject       'Translated using Weblate (English)' \
@@ -384,7 +392,7 @@ define \
 
 define \
 	-test          'No exception: weblate' \
-	-expected      '0 0 0 0 0 0 0 1 3 0 0 1 3 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 1 3 0 0 1 3 0 0 3 3 0 0' \
 	-author        'Hosted Weblate' \
 	-email         'hosted@weblate.org' \
 	-subject       'Translated using Weblate (English)' \
@@ -403,7 +411,7 @@ define \
 
 define \
 	-test          'PR from master' \
-	-expected      '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: add new feature' \
@@ -416,7 +424,7 @@ define \
 
 define \
 	-test          'Feature branch check disabled' \
-	-expected      '3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: add new feature' \
@@ -429,7 +437,7 @@ define \
 
 define \
 	-test          'Feature branch check enabled, PR from main fails' \
-	-expected      '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: add new feature' \
@@ -442,8 +450,62 @@ define \
 	EOF
 
 define \
+	-test          'Content: Missing newline' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 1 0' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: missing newline' \
+	-content       'line1\nline2' \
+	-body          <<-'EOF'
+		This commit has a file missing a newline at the end.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Content: Missing newline disabled' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 3 0' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: missing newline disabled' \
+	-content       'line1\nline2' \
+	-check-trailing-newline 'false' \
+	-body          <<-'EOF'
+		This commit has a file missing a newline at the end, but check is disabled.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Content: Trailing whitespace' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 2' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: trailing whitespace' \
+	-content       'line1 \nline2\n' \
+	-body          <<-'EOF'
+		This commit has a file with trailing whitespace.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
+	-test          'Content: Trailing whitespace disabled' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 3' \
+	-author        'Good Author' \
+	-email         'good.author@example.com' \
+	-subject       'package: trailing whitespace disabled' \
+	-content       'line1 \nline2\n' \
+	-check-trailing-whitespace 'false' \
+	-body          <<-'EOF'
+		This commit has a file with trailing whitespace, but check is disabled.
+
+		Signed-off-by: Good Author <good.author@example.com>
+	EOF
+
+define \
 	-test          'Feature branch check enabled, PR from feature branch passes' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 3 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: add new feature' \
@@ -457,7 +519,7 @@ define \
 
 define \
 	-test          'Signature: good signature (G)' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: signed commit' \
@@ -470,7 +532,7 @@ define \
 
 define \
 	-test          'Signature: expired key (X)' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 2' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 2 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: expired key signature' \
@@ -483,7 +545,7 @@ define \
 
 define \
 	-test          'Signature: unknown key (U)' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 2' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 2 0 0' \
 	-author        'Good Author' \
 	-email         'good.author@example.com' \
 	-subject       'package: unknown key signature' \
@@ -496,7 +558,7 @@ define \
 
 define \
 	-test          'Signature: bad signature (B)' \
-	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 1' \
+	-expected      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 1 0 0' \
 	-author        'Bad Author' \
 	-email         'bad.author@example.com' \
 	-subject       'package: bad signature' \
@@ -522,8 +584,14 @@ commit() {
 	local subject="$3"
 	local body="$4"
 	local sign_key="${5:-}"
+	local content="${6:-}"
 
-	touch "file-$(date +%s-%N).txt"
+	local filename="file-$(date +%s-%N).txt"
+	if [ -n "$content" ]; then
+		printf "%b" "$content" > "$filename"
+	else
+		touch "$filename"
+	fi
 	git add .
 
 	local git_opts=()
@@ -589,12 +657,13 @@ run_test() {
 	local merge="${7:-0}"
 	local injection_file="${8:-}"
 	local sign_key="${9:-}"
+	local content="${10:-}"
 
 	local expected_results
 	read -r -a expected_results <<< "$expected_results_str"
 
 	[ "$merge" = 1 ] && git switch "$BASE_BRANCH" >/dev/null 2>&1
-	commit "$author" "$email" "$subject" "$body" "$sign_key" >/dev/null
+	commit "$author" "$email" "$subject" "$body" "$sign_key" "$content" >/dev/null
 	[ "$merge" = 1 ] \
 		&& git switch "$HEAD_BRANCH" >/dev/null 2>&1 \
 		&& git merge --no-ff "$BASE_BRANCH" -m "Merge branch '$BASE_BRANCH' into '$HEAD_BRANCH'" >/dev/null 2>&1
@@ -750,6 +819,8 @@ run_worker() {
 	export CHECK_SIGNOFF="${ENV_CHECK_SIGNOFF[$idx]}"
 	export EXCLUDE_DEPENDABOT="${ENV_EXCLUDE_DEPENDABOT[$idx]}"
 	export EXCLUDE_WEBLATE="${ENV_EXCLUDE_WEBLATE[$idx]}"
+	export CHECK_TRAILING_NEWLINE="${ENV_CHECK_TRAILING_NEWLINE[$idx]}"
+	export CHECK_TRAILING_WHITESPACE="${ENV_CHECK_TRAILING_WHITESPACE[$idx]}"
 	export HEAD_BRANCH="${ENV_HEAD_BRANCH[$idx]}"
 	export PARALLEL_WORKER=true
 
@@ -763,7 +834,8 @@ run_worker() {
 		"${BODIES[$idx]}" \
 		"${MERGES[$idx]}" \
 		"${INJECTIONS[$idx]}" \
-		"${SIGN_KEYS[$idx]}")
+		"${SIGN_KEYS[$idx]}" \
+		"${CONTENTS[$idx]}")
 	local res=$?
 
 	echo "$output" > "$base_dir/$idx.log"
@@ -854,7 +926,7 @@ main() {
 	echo $'\nTest suite finished'
 	echo "Summary: $pass_count/$test_count tests passed"
 
-	[ "$pass_count" != "$test_count" ] \
+	[ "$pass_count" -ne "$test_count" ] \
 		&& exit 1 \
 		|| exit 0
 }

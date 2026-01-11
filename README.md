@@ -33,6 +33,8 @@ Commit & PR formalities checker based on the OpenWrt [submission guidelines](
   is 75 by default and is configurable via the `max_body_line_len` input.
 - Commit to stable branch should be marked as cherry-picked.
 - Verifies commit signature (GPG/SSH) if present. Missing signatures are ignored, but invalid signatures will cause a failure.
+- Modified files must end with a newline. Configured via the `check_trailing_newline` input.
+- Modified files must not contain trailing whitespace. Configured via the `check_trailing_whitespace` input.
 
 ## Inputs
 
@@ -47,6 +49,16 @@ All inputs are optional.
 
 - Check if `Signed-off-by` exists and matches author.
 - Default: `false`.
+
+### `check_trailing_newline`
+
+- Check if modified files end with a newline.
+- Default: `true`.
+
+### `check_trailing_whitespace`
+
+- Check if modified files contain trailing whitespace.
+- Default: `true`.
 
 ### `exclude_dependabot`
 
