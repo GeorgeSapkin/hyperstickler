@@ -1,0 +1,27 @@
+name: Update major tag
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  tag:
+    name: Update major tag
+    runs-on: ubuntu-slim
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract and update major tag
+        run: |
+          FULL_TAG=${{ github.ref_name }}
+          MAJOR_TAG=$(echo $FULL_TAG | cut -d. -f1)
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          echo "Moving $MAJOR_TAG to $FULL_TAG"
+          git tag -fa $MAJOR_TAG -m "Update $MAJOR_TAG to $FULL_TAG"
+          git push origin $MAJOR_TAG --force
