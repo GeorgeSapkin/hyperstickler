@@ -32,6 +32,8 @@ Commit & PR formalities checker based on the OpenWrt [submission guidelines](
 - Commit message lines should be <= `MAX_BODY_LINE_LEN` characters long. Limit
   is 75 by default and is configurable via the `max_body_line_len` input.
 - Commit to stable branch should be marked as cherry-picked.
+- Commit signature must be valid. Configured via the `check_signature` input.
+  When enabled, invalid signatures will cause a failure (missing are ignored).
 
 ## Inputs
 
@@ -41,6 +43,11 @@ All inputs are optional.
 
 - Check if pull request comes from a feature branch.
 - Default: `true`.
+
+### `check_signature`
+
+- Validate commit signatures. Invalid signatures fail, missing are ignored.
+- Default: `false`.
 
 ### `check_signoff`
 
