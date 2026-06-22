@@ -61,6 +61,7 @@ SKIP_REASONS=()
 # Use these global vars to improve header creation readability
 COMMIT=""
 HEADER_SET=0
+IS_FIXUP=0
 
 REPO_PATH=${1:+-C "$1"}
 # shellcheck disable=SC2206
@@ -237,6 +238,8 @@ is_not_alias()         { [[ ! "$1" =~ [^[:space:]] ]]; }
 # shellcheck disable=SC2329
 is_not_name()          { [[ ! "$1" =~ [^[:space:]]+[[:space:]][^[:space:]]+ ]]; }
 is_revert()            { [[ "$1" == "Revert "* ]]; }
+is_fixup_or_squash()   { [[ "$1" =~ ^(fixup|squash)! ]]; }
+is_in_fixup_mode()     { [ "$IS_FIXUP" = 1 ]; }
 is_warn()              { [ "$1" = "$RES_WARN" ]; }
 # shellcheck disable=SC2329
 omits()                { [[ "$1" != *"$2"* ]]; }
@@ -305,6 +308,10 @@ reset_skip_reasons() {
 	# shellcheck disable=SC2181
 	if [ $? = 0 ]; then
 		push_skip_reason "authored by $exception"
+	fi
+
+	if is_in_fixup_mode; then
+		push_skip_reason 'fixup or squash commit'
 	fi
 }
 
@@ -522,6 +529,8 @@ check_body() {
 	check \
 		-rule 'Commit message must exist' \
 		-always \
+		-skip-if is_in_fixup_mode \
+		-skip-reason 'fixup or squash commit' \
 		-fail-if is_body_empty "$body" \
 		-fail-set-skip 'missing commit message'
 
@@ -599,6 +608,7 @@ main() {
 		do
 			HEADER_SET=0
 			COMMIT="$commit"
+			IS_FIXUP=0
 
 			echo "$commit_header"
 
@@ -611,6 +621,16 @@ main() {
 				# No need to check anything else, since this is a merge commit
 				echo
 				continue
+			fi
+
+			check \
+				-rule 'Fixup commit has been detected' \
+				-warn-if is_fixup_or_squash "$subject"
+
+			if is_warn $?; then
+				output_raw "Fixup commit has been detected, skipping formality checks for now. This allows easier review of individual changes. Please squash these commits before merging, after which formality checks will be enforced."
+				echo
+				IS_FIXUP=1
 			fi
 
 			reset_skip_reasons "$author_email"
